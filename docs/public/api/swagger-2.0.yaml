@@ -2531,6 +2531,10 @@ paths:
           type: string
         name: parentIds
         type: array
+      - description: Filter by insured status; omitted returns both
+        in: query
+        name: insured
+        type: boolean
       produces:
       - application/json
       responses:

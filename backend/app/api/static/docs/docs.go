@@ -282,6 +282,12 @@ const docTemplate = `{
                         "description": "parent Ids",
                         "name": "parentIds",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by insured status; omitted returns both",
+                        "name": "insured",
+                        "in": "query"
                     }
                 ],
                 "responses": {

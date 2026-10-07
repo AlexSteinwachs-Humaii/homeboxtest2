@@ -68,7 +68,8 @@ type (
 		OnlyWithoutPhoto bool    `json:"onlyWithoutPhoto"`
 		OnlyWithPhoto    bool    `json:"onlyWithPhoto"`
 		IncludeArchived  bool    `json:"includeArchived"`
-		FilterChildren   bool    `json:"filterChildren"` // when true, only return root entities (no parent)
+		Insured          *bool   `json:"insured,omitempty"` // nil=all, true=insured, false=not insured
+		FilterChildren   bool    `json:"filterChildren"`    // when true, only return root entities (no parent)
 	}
 
 	DuplicateOptions struct {
@@ -616,6 +617,10 @@ func (r *EntityRepository) QueryByGroup(ctx context.Context, gid uuid.UUID, q En
 				entity.HasEntityTypeWith(entitytype.IsLocation(false)),
 			),
 		)
+	}
+
+	if q.Insured != nil {
+		qb = qb.Where(entity.Insured(*q.Insured))
 	}
 
 	if q.FilterChildren {
