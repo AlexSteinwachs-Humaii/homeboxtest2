@@ -221,6 +221,14 @@
     ];
   });
 
+  const recordLocations = computed(() => {
+    const locations = fullpath.value?.filter(part => part.type === "location") ?? [];
+    if (locations.length > 0) {
+      return locations;
+    }
+    return item.value?.location ? [item.value.location] : [];
+  });
+
   const itemDetails = computed<Details>(() => {
     if (!item.value) {
       return [];
@@ -231,6 +239,11 @@
         name: "items.quantity",
         text: item.value?.quantity,
         slot: "quantity",
+      },
+      {
+        name: "items.location",
+        text: recordLocations.value.map(location => location.name).join(" / "),
+        slot: "location",
       },
       {
         name: "items.serial_number",
@@ -787,39 +800,97 @@
         <NuxtPage :item="item" :page-key="itemId" />
 
         <!-- anything in this is not rendered if on another page -->
-        <BaseCard v-if="!hasNested" collapsable>
-          <template #title> {{ $t("items.details") }} </template>
-          <template #title-actions>
-            <div class="mt-2 flex flex-wrap items-center justify-between gap-4">
-              <Label class="flex cursor-pointer items-center gap-2">
-                <Switch v-model="preferences.showEmpty" />
-                {{ $t("items.show_empty") }}
-              </Label>
-              <div class="space-x-1">
-                <CopyText :text="currentUrl" :icon-size="16" />
-              </div>
-            </div>
-          </template>
-          <DetailsSection :details="itemDetails">
-            <template #quantity="{ detail }">
-              <div class="flex items-center">
-                {{ detail.text }}
-                <span
-                  class="my-0 ml-4 inline-flex gap-2 opacity-10 transition-opacity duration-75 group-hover:opacity-100"
-                >
-                  <Button size="icon" variant="outline" class="size-8 rounded-full" @click="adjustQuantity(-1)">
-                    <MdiMinus class="size-3" />
-                  </Button>
-                  <Button size="icon" variant="outline" class="size-8 rounded-full" @click="adjustQuantity(1)">
-                    <MdiPlus class="size-3" />
-                  </Button>
-                </span>
+        <div
+          v-if="!hasNested"
+          class="space-y-6 xl:grid xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)] xl:items-start xl:gap-6 xl:space-y-0"
+        >
+          <BaseCard collapsable data-testid="item-record">
+            <template #title> {{ $t("items.record") }} </template>
+            <template #title-actions>
+              <div class="mt-2 flex flex-wrap items-center justify-between gap-4">
+                <Label class="flex cursor-pointer items-center gap-2">
+                  <Switch v-model="preferences.showEmpty" />
+                  {{ $t("items.show_empty") }}
+                </Label>
+                <div class="space-x-1">
+                  <CopyText :text="currentUrl" :icon-size="16" />
+                </div>
               </div>
             </template>
-          </DetailsSection>
-        </BaseCard>
+            <DetailsSection :details="itemDetails">
+              <template #location>
+                <span v-for="(location, index) in recordLocations" :key="location.id">
+                  <span v-if="index > 0"> / </span>
+                  <NuxtLink :to="`/location/${location.id}`" class="text-primary hover:underline">
+                    {{ location.name }}
+                  </NuxtLink>
+                </span>
+              </template>
+              <template #quantity="{ detail }">
+                <div class="flex items-center">
+                  {{ detail.text }}
+                  <span
+                    class="my-0 ml-4 inline-flex gap-2 opacity-10 transition-opacity duration-75 group-hover:opacity-100"
+                  >
+                    <Button size="icon" variant="outline" class="size-8 rounded-full" @click="adjustQuantity(-1)">
+                      <MdiMinus class="size-3" />
+                    </Button>
+                    <Button size="icon" variant="outline" class="size-8 rounded-full" @click="adjustQuantity(1)">
+                      <MdiPlus class="size-3" />
+                    </Button>
+                  </span>
+                </div>
+              </template>
+            </DetailsSection>
+          </BaseCard>
 
-        <!-- anything in this is not rendered if on another page -->
+          <div class="space-y-6">
+            <BaseCard v-if="showPurchase" collapsable data-testid="item-purchase">
+              <template #title> {{ $t("items.recorded_purchase_information") }} </template>
+              <DetailsSection :details="purchaseDetails" />
+            </BaseCard>
+
+            <BaseCard v-if="showAttachments" collapsable data-testid="item-attachments">
+              <template #title> {{ $t("items.attachments") }} </template>
+              <DetailsSection v-if="attachmentDetails.length > 0" :details="attachmentDetails">
+                <template #manuals>
+                  <ItemAttachmentsList
+                    v-if="attachments.manuals.length > 0"
+                    :attachments="attachments.manuals"
+                    :item-id="item.id"
+                  />
+                </template>
+                <template #attachments>
+                  <ItemAttachmentsList
+                    v-if="attachments.attachments.length > 0"
+                    :attachments="attachments.attachments"
+                    :item-id="item.id"
+                  />
+                </template>
+                <template #warranty>
+                  <ItemAttachmentsList
+                    v-if="attachments.warranty.length > 0"
+                    :attachments="attachments.warranty"
+                    :item-id="item.id"
+                  />
+                </template>
+                <template #receipts>
+                  <ItemAttachmentsList
+                    v-if="attachments.receipts.length > 0"
+                    :attachments="attachments.receipts"
+                    :item-id="item.id"
+                  />
+                </template>
+              </DetailsSection>
+              <div v-else>
+                <p class="px-6 pb-4 text-foreground/70">
+                  {{ $t("items.no_attachments") }}
+                </p>
+              </div>
+            </BaseCard>
+          </div>
+        </div>
+
         <template v-if="!hasNested">
           <BaseCard v-if="photos && photos.length > 0">
             <template #title> {{ $t("items.photos") }} </template>
@@ -828,50 +899,6 @@
                 <img class="max-h-[200px] rounded" :src="img.thumbnailSrc" :alt="$t('items.photo')" loading="lazy" />
               </button>
             </div>
-          </BaseCard>
-
-          <BaseCard v-if="showAttachments" collapsable>
-            <template #title> {{ $t("items.attachments") }} </template>
-            <DetailsSection v-if="attachmentDetails.length > 0" :details="attachmentDetails">
-              <template #manuals>
-                <ItemAttachmentsList
-                  v-if="attachments.manuals.length > 0"
-                  :attachments="attachments.manuals"
-                  :item-id="item.id"
-                />
-              </template>
-              <template #attachments>
-                <ItemAttachmentsList
-                  v-if="attachments.attachments.length > 0"
-                  :attachments="attachments.attachments"
-                  :item-id="item.id"
-                />
-              </template>
-              <template #warranty>
-                <ItemAttachmentsList
-                  v-if="attachments.warranty.length > 0"
-                  :attachments="attachments.warranty"
-                  :item-id="item.id"
-                />
-              </template>
-              <template #receipts>
-                <ItemAttachmentsList
-                  v-if="attachments.receipts.length > 0"
-                  :attachments="attachments.receipts"
-                  :item-id="item.id"
-                />
-              </template>
-            </DetailsSection>
-            <div v-else>
-              <p class="px-6 pb-4 text-foreground/70">
-                {{ $t("items.no_attachments") }}
-              </p>
-            </div>
-          </BaseCard>
-
-          <BaseCard v-if="showPurchase" collapsable>
-            <template #title> {{ $t("items.purchase_details") }} </template>
-            <DetailsSection :details="purchaseDetails" />
           </BaseCard>
 
           <BaseCard v-if="showWarranty" collapsable>
