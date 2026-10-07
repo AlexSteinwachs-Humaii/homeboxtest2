@@ -24,24 +24,14 @@ export function statCardData(api: UserClient) {
   return computed(() => {
     return [
       {
-        label: t("home.total_value"),
-        value: statistics.value?.totalItemPrice || 0,
-        type: "currency",
-      },
-      {
         label: t("home.total_items"),
         value: statistics.value?.totalItems || 0,
         type: "number",
       },
       {
-        label: t("home.total_locations"),
-        value: statistics.value?.totalLocations || 0,
-        type: "number",
-      },
-      {
-        label: t("home.total_tags"),
-        value: statistics.value?.totalTags || 0,
-        type: "number",
+        label: t("home.recorded_purchase_prices"),
+        value: statistics.value?.totalItemPrice || 0,
+        type: "currency",
       },
     ] as StatCard[];
   });
