@@ -244,6 +244,9 @@
                 },
                 "selectable": {
                     "card": "Card",
+                    "clear_selection": "Clear selection",
+                    "move": "Move",
+                    "selected_count": "{count} selected",
                     "items": "Items",
                     "no_items": "No Items to Display",
                     "select_all": "Select All",
@@ -644,6 +647,7 @@
         "receipts": "Receipts",
         "reset_search": "Reset Search",
         "results": "{ total } Results",
+        "shown_range": "Showing {first}–{last} of {total}",
         "select_field": "Select a field",
         "select_value": "Select a value",
         "serial_number": "Serial Number",

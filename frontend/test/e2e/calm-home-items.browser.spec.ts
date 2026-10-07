@@ -100,6 +100,7 @@ for (const savedTable of [false, true]) {
       await cardButton.click();
     }
     await expect(cards).toHaveCount(3);
+    await expect(page.getByText("Showing 1–3 of 3", { exact: true })).toBeVisible();
     const drill = cards.filter({ hasText: "Cordless Drill" });
     for (const text of ["001-024", "Garage", "Quantity 2", "$129.00"]) {
       await expect(drill).toContainText(text);
@@ -118,11 +119,21 @@ for (const savedTable of [false, true]) {
     await expect(drill.locator("a")).toHaveAttribute("href", "/item/drill");
     // Selection is independent of the detail link.
     const checkbox = drill.getByRole("checkbox");
-    if (await checkbox.count()) {
-      await expect(drill.locator("a").getByRole("checkbox")).toHaveCount(0);
-      await checkbox.click();
-      await expect(page).toHaveURL(/\/items\/?$/);
-    }
+    const move = page.getByRole("button", { name: "Move", exact: true });
+    await expect(move).toHaveCount(0);
+    await expect(drill.locator("a").getByRole("checkbox")).toHaveCount(0);
+    await checkbox.click();
+    await expect(page).toHaveURL(/\/items\/?$/);
+    await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+    await cards.filter({ hasText: "Camping Tent" }).getByRole("checkbox").click();
+    await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+    await move.click();
+    await expect(page.getByRole("dialog", { name: "Change Item Details" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Clear selection", exact: true }).click();
+    await expect(move).toHaveCount(0);
+    await expect(checkbox).not.toBeChecked();
     await tableButton.click();
     await expect(cards).toHaveCount(0);
     await expect(page.getByRole("table")).toBeVisible();

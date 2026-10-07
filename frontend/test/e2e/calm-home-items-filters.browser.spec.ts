@@ -83,6 +83,7 @@ test("items filters stay beside search and persist across pages", async ({ page,
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Page 2", exact: true }).first().click();
   await expect(cards).toContainText("Bike");
+  await expect(page.getByText("Showing 2–2 of 2", { exact: true })).toBeVisible();
   await expect.poll(() => latest.get("page")).toBe("2");
   await expect.poll(() => latest.get("insured")).toBe("true");
   await page.reload();

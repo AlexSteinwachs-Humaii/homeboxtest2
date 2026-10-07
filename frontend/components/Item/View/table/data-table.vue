@@ -166,6 +166,11 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Row selection uses page-relative indices; do not transfer it to newly loaded items.
+  watch(
+    () => props.data,
+    () => table.resetRowSelection()
+  );
   watch(() => pagination.value.pageIndex, scrollToTop);
   watch(() => props.externalPagination?.page, scrollToTop);
 </script>
