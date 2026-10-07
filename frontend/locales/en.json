@@ -789,8 +789,19 @@
         "update_location": "Update Location"
     },
     "maintenance": {
+        "summary": {
+            "scheduled": "{count} scheduled",
+            "overdue": "{count} overdue",
+            "none_overdue": "nothing overdue",
+            "loading": "Loading maintenance…",
+            "failed": "Could not load maintenance. Please try again."
+        },
+        "empty": {
+            "scheduled": "No scheduled tasks.",
+            "completed": "No completed work yet."
+        },
         "filter": {
-            "both": "Both",
+            "both": "All",
             "completed": "Completed",
             "scheduled": "Scheduled"
         },
