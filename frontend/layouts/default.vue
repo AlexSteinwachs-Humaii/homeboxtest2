@@ -460,8 +460,9 @@
     },
   ];
   const navigationGroups = [primaryNav, secondaryNav];
-  // Keep every destination available in the keyboard quick menu as well.
-  const nav = [...primaryNav, ...secondaryNav, ...tools, ...settings];
+  // Group labels alias a child route (Tools → collection tools, Settings → profile).
+  // List each destination once so the quick menu does not show two "Tools" or two "Settings" entries.
+  const nav = [...primaryNav, ...tools, ...settings];
 
   const quickMenuActions = reactive([
     ...dropdown.map(v => ({

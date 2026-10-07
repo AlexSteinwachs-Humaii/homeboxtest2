@@ -144,8 +144,15 @@ test.describe("HomeBox Upgrade Verification", () => {
 
     await page.waitForSelector("body", { state: "visible" });
 
-    // Try to find tags link in navigation
-    const tagsLink = page.locator("a[href*='tag'], button:has-text('Tags')").first();
+    // Tags live under the secondary Tools group, which is collapsed until opened.
+    let tagsLink = page.locator("a[href*='tag'], button:has-text('Tags')").first();
+    if ((await tagsLink.count()) === 0 || !(await tagsLink.isVisible())) {
+      const toolsToggle = page.getByRole("button", { name: "Tools", exact: true });
+      if ((await toolsToggle.count()) > 0) {
+        await toolsToggle.first().click();
+      }
+      tagsLink = page.locator("a[href*='tag'], button:has-text('Tags')").first();
+    }
 
     if ((await tagsLink.count()) > 0) {
       await tagsLink.click();
@@ -213,8 +220,15 @@ test.describe("HomeBox Upgrade Verification", () => {
       await settingsLink.click();
       await page.waitForLoadState("networkidle");
 
-      // Look for notifiers section
-      const notifiersLink = page.locator("a:has-text('Notif'), button:has-text('Notif')").first();
+      // Notifiers stay under Settings, collapsed unless that group is already open.
+      let notifiersLink = page.locator("a:has-text('Notif'), button:has-text('Notif')").first();
+      if ((await notifiersLink.count()) === 0 || !(await notifiersLink.isVisible())) {
+        const settingsToggle = page.getByRole("button", { name: "Settings", exact: true });
+        if ((await settingsToggle.count()) > 0) {
+          await settingsToggle.first().click();
+        }
+        notifiersLink = page.locator("a:has-text('Notif'), button:has-text('Notif')").first();
+      }
 
       if ((await notifiersLink.count()) > 0) {
         await notifiersLink.click();
