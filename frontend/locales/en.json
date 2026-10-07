@@ -498,6 +498,9 @@
     },
     "home": {
         "quick_statistics": "Quick Statistics",
+        "export_inventory_csv": "Export inventory CSV",
+        "export_inventory_busy": "Preparing inventory CSV…",
+        "export_inventory_error": "Could not export inventory. Check your connection and try Export inventory CSV again.",
         "recently_added": "Recently Added",
         "storage_locations": "Storage Locations",
         "tags": "Tags",

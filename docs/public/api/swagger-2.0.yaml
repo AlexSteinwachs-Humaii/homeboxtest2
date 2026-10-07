@@ -3737,6 +3737,39 @@ paths:
       summary: Export Bill of Materials
       tags:
       - Reporting
+  /v1/reporting/dashboard-inventory:
+    get:
+      description: Exports all non-archived inventory items (including nested items,
+        excluding locations) in the authenticated tenant or default collection using
+        the standard HB.* inventory CSV schema.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Inventory CSV; headers only for empty inventory
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/validate.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Export active dashboard inventory
+      tags:
+      - Reporting
   /v1/status:
     get:
       produces:

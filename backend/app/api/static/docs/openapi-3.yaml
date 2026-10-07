@@ -1435,6 +1435,47 @@ paths:
             application/json:
               schema:
                 type: string
+  /v1/reporting/dashboard-inventory:
+    get:
+      security:
+        - Bearer: []
+      description: Exports all non-archived inventory items (including nested items,
+        excluding locations) in the authenticated tenant or default collection
+        using the standard HB.* inventory CSV schema.
+      tags:
+        - Reporting
+      summary: Export active dashboard inventory
+      responses:
+        "200":
+          description: Inventory CSV; headers only for empty inventory
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: Bad Request
+          content:
+            text/csv:
+              schema:
+                $ref: "#/components/schemas/validate.ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            text/csv:
+              schema:
+                $ref: "#/components/schemas/validate.ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            text/csv:
+              schema:
+                $ref: "#/components/schemas/validate.ErrorResponse"
+        "500":
+          description: Internal Server Error
+          content:
+            text/csv:
+              schema:
+                $ref: "#/components/schemas/validate.ErrorResponse"
   /v1/status:
     get:
       tags:
