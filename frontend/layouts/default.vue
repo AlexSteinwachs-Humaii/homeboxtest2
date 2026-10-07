@@ -232,7 +232,7 @@
                 {{ $t("global.search") }}
               </Button>
             </form>
-            <Button variant="outline" @click="openDialog(DialogID.Scanner)">
+            <Button variant="outline" @click="navigateTo('/scanner')">
               <MdiQrcodeScan />
               {{ $t("menu.scan_label") }}
             </Button>

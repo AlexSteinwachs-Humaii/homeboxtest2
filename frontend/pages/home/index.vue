@@ -9,8 +9,6 @@
   import MdiMapMarkerOutline from "~icons/mdi/map-marker-outline";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
-  import { useDialog } from "@/components/ui/dialog-provider";
-  import { DialogID } from "@/components/ui/dialog-provider/utils";
   import DateTime from "~/components/global/DateTime.vue";
   import MdiPlus from "~icons/mdi/plus";
   import MdiQrcodeScan from "~icons/mdi/qrcode-scan";
@@ -29,7 +27,6 @@
   });
 
   const api = useUserApi();
-  const { openDialog } = useDialog();
   const search = ref("");
 
   function searchInventory() {
@@ -72,7 +69,7 @@
             </p>
           </div>
           <div class="flex flex-wrap gap-3">
-            <Button variant="outline" @click="openDialog(DialogID.Scanner)">
+            <Button variant="outline" @click="navigateTo('/scanner')">
               <MdiQrcodeScan />
               {{ $t("menu.scan_label") }}
             </Button>

@@ -979,6 +979,12 @@
         }
     },
     "scanner": {
+        "ready_title": "Scan a label",
+        "looking_in": "Looking in {collection}",
+        "frame_instruction": "Hold a barcode or QR label inside the frame",
+        "manual_title": "Or type the code",
+        "manual_help": "Use this when the camera cannot read the label. Look up a code in your collection.",
+        "look_up": "Look up",
         "barcode_detected_message": "product barcode detected",
         "barcode_fetch_data": "Fetch product data",
         "error": "An error occurred while scanning",
