@@ -52,13 +52,22 @@
 
   onMounted(async () => {
     try {
-      await Promise.all([types.ensureFetched(), locations.ensureLocationsFetched(), tags.ensureAllTagsFetched()]);
+      await Promise.all([
+        types.ensureFetched(),
+        locations.ensureLocationsFetched(),
+        locations.tree === null ? locations.refreshTree() : Promise.resolve(),
+        tags.ensureAllTagsFetched(),
+      ]);
       if (locations.Locations === null || tags.allTags === null || !types.itemTypes.length) {
         error.value = t("item.capture.load_failed");
         return;
       }
+      // Apply the query only after the lists arrive, and only if the person
+      // has not already chosen a place. The fieldset stays disabled until then.
       const locationId = typeof route.query.location === "string" ? route.query.location : null;
-      form.location = locations.allLocations.find(location => location.id === locationId) ?? null;
+      if (locationId && !form.location) {
+        form.location = locations.allLocations.find(location => location.id === locationId) ?? null;
+      }
       ready.value = true;
     } catch {
       error.value = t("item.capture.load_failed");
@@ -67,7 +76,13 @@
 
   async function rotatePhoto(index: number) {
     const photo = form.photos[index];
-    if (photo) form.photos[index] = await rotatePhotoPreview(photo);
+    if (!photo) return;
+    try {
+      form.photos[index] = await rotatePhotoPreview(photo);
+    } catch (err) {
+      toast.error(t("components.entity.create_modal.toast.rotate_process_failed"));
+      console.error(err);
+    }
   }
 
   async function save() {
@@ -171,7 +186,7 @@
         </div>
       </div>
       <p v-if="error" role="alert" class="mb-4 text-destructive">{{ error }}</p>
-      <fieldset :disabled="loading" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <fieldset :disabled="loading || !ready" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div class="flex min-w-0 flex-col gap-5 rounded-xl border bg-card p-6">
           <FormTextField
             v-model="form.name"
@@ -212,8 +227,12 @@
             <p class="mt-3 text-sm text-muted-foreground">{{ $t("item.capture.no_photo") }}</p>
           </div>
           <details class="mt-4 rounded-xl border bg-card p-4" data-testid="advanced-fields">
-            <summary class="cursor-pointer font-medium">{{ $t("items.advanced") }}</summary>
-            <p class="mt-2 text-sm text-muted-foreground">{{ $t("item.capture.advanced_summary") }}</p>
+            <summary class="cursor-pointer">
+              <span class="font-medium">{{ $t("items.advanced") }}</span>
+              <span class="mt-1 block text-sm font-normal text-muted-foreground">
+                {{ $t("item.capture.advanced_summary") }}
+              </span>
+            </summary>
             <div class="mt-4 flex flex-col gap-4">
               <FormTextField v-model="form.serialNumber" :label="$t('items.serial_number')" :max-length="255" />
               <FormTextField v-model="form.modelNumber" :label="$t('items.model_number')" :max-length="255" />

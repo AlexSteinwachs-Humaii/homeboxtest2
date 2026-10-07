@@ -77,6 +77,7 @@ for (const { priceFails, withPrice, withAdvanced, withParent } of [
     await expect(form.getByText("A name and a location are enough to find it later.")).toBeVisible();
     await expect(form.getByText("Items without photos still appear in search.")).toBeVisible();
     const advanced = form.getByTestId("advanced-fields");
+    await expect(advanced.getByText("Serial, model, manufacturer, parent item, insured.")).toBeVisible();
     for (const name of [/^Serial Number/, /^Model Number/, /^Manufacturer/]) {
       await expect(advanced.getByRole("textbox", { name })).toBeHidden();
     }
