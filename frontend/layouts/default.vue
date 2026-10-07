@@ -19,13 +19,9 @@
     <SidebarProvider :default-open="sidebarState">
       <Sidebar collapsible="icon">
         <SidebarHeader class="items-center">
-          <SidebarGroupLabel class="text-base group-data-[collapsible=icon]:hidden">{{
-            $t("global.welcome", { username: username })
-          }}</SidebarGroupLabel>
-          <NuxtLink class="group-data-[collapsible=icon]:hidden" to="/home">
-            <div class="flex size-24 items-center justify-center rounded-full bg-background-accent p-4">
-              <AppLogo />
-            </div>
+          <NuxtLink to="/home" class="flex items-center gap-2 self-start p-2" aria-label="HomeBox">
+            <AppLogo class="size-8 shrink-0" />
+            <span class="text-xl font-semibold group-data-[collapsible=icon]:hidden">HomeBox</span>
           </NuxtLink>
 
           <CollectionSelector />
@@ -53,10 +49,14 @@
                     if (btn.dialogId === DialogID.CreateEntity) {
                       if (btn.id == 0)
                         // create item
-                        openDialog(btn.dialogId, { params: { baseType: 'item' } });
+                        openDialog(btn.dialogId, {
+                          params: { baseType: 'item' },
+                        });
                       else if (btn.id == 1)
                         // create location
-                        openDialog(btn.dialogId, { params: { baseType: 'location' } });
+                        openDialog(btn.dialogId, {
+                          params: { baseType: 'location' },
+                        });
                     } else {
                       openDialog(btn.dialogId as NoParamDialogIDs);
                     }
@@ -75,15 +75,21 @@
         </SidebarHeader>
 
         <SidebarContent>
-          <SidebarGroup>
+          <SidebarGroup
+            v-for="(group, index) in navigationGroups"
+            :key="index"
+            :data-testid="index === 0 ? 'primary-navigation' : 'secondary-navigation'"
+            :class="index === 1 ? 'mt-auto border-t border-sidebar-border text-muted-foreground' : ''"
+          >
             <SidebarMenu>
-              <template v-for="n in nav" :key="n.id">
+              <template v-for="n in group" :key="n.id">
                 <SidebarMenuItem v-if="!n.collapsible" :key="n.id">
                   <SidebarMenuLink
                     :href="n.to"
                     :class="{
                       'bg-accent text-accent-foreground': n.active?.value,
                       'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
+                      '!text-base': index === 1,
                     }"
                     :tooltip="n.name.value"
                   >
@@ -92,7 +98,7 @@
                   </SidebarMenuLink>
                 </SidebarMenuItem>
 
-                <Collapsible v-else default-open class="group/collapsible">
+                <Collapsible v-else :default-open="n.active.value" class="group/collapsible">
                   <SidebarMenuItem>
                     <SidebarMenuItem class="flex gap-1">
                       <SidebarMenuLink
@@ -100,6 +106,7 @@
                         :class="{
                           'bg-accent text-accent-foreground': n.active?.value,
                           'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
+                          '!text-base': index === 1,
                         }"
                         :tooltip="n.name.value"
                       >
@@ -107,7 +114,7 @@
                         <span>{{ n.name.value }}</span>
                       </SidebarMenuLink>
                       <CollapsibleTrigger as-child>
-                        <SidebarMenuButton class="flex size-12 items-center justify-center">
+                        <SidebarMenuButton class="flex size-10 items-center justify-center" :aria-label="n.name.value">
                           <MdiChevronRight
                             class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
                           />
@@ -122,6 +129,7 @@
                             :class="{
                               'bg-accent text-accent-foreground': c.active?.value,
                               'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
+                              '!text-base': index === 1,
                               'h-min py-0': true,
                             }"
                             :tooltip="c.name.value"
@@ -136,7 +144,7 @@
               </template>
 
               <!-- makes scanner accessible easily if using legacy header -->
-              <SidebarMenuItem v-if="preferences.displayLegacyHeader">
+              <SidebarMenuItem v-if="index === 0 && preferences.displayLegacyHeader">
                 <SidebarMenuButton
                   :class="{
                     'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
@@ -152,7 +160,13 @@
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter>
+        <SidebarFooter class="border-t border-sidebar-border">
+          <div class="min-w-0 px-2 py-1 group-data-[collapsible=icon]:hidden">
+            <p class="truncate text-sm font-medium">{{ username }}</p>
+            <p class="truncate text-xs text-muted-foreground">
+              {{ selectedCollection?.name }}
+            </p>
+          </div>
           <SidebarMenuButton
             class="flex justify-center group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:bg-destructive group-data-[collapsible=icon]:text-destructive-foreground group-data-[collapsible=icon]:shadow-sm group-data-[collapsible=icon]:hover:bg-destructive/90"
             :tooltip="$t('global.sign_out')"
@@ -235,6 +249,7 @@
 </template>
 
 <script lang="ts" setup>
+  import { primaryNavigation, toolsNavigation, settingsNavigation, isNavigationActive } from "~/lib/navigation";
   import { useI18n } from "vue-i18n";
   import DOMPurify from "dompurify";
   import { useTagStore } from "~/stores/tags";
@@ -243,15 +258,14 @@
 
   import MdiHome from "~icons/mdi/home";
   import MdiFileTree from "~icons/mdi/file-tree";
-  import MdiTagMultiple from "~icons/mdi/tag-multiple";
+  import MdiPackageVariant from "~icons/mdi/package-variant";
+  import MdiToolboxOutline from "~icons/mdi/toolbox-outline";
   import MdiMagnify from "~icons/mdi/magnify";
   import MdiQrcodeScan from "~icons/mdi/qrcode-scan";
-  import MdiAccount from "~icons/mdi/account";
   import MdiCog from "~icons/mdi/cog";
   import MdiWrench from "~icons/mdi/wrench";
   import MdiPlus from "~icons/mdi/plus";
   import MdiLogout from "~icons/mdi/logout";
-  import MdiFileDocumentMultiple from "~icons/mdi/file-document-multiple";
   import MdiChevronRight from "~icons/mdi/chevron-right";
 
   import {
@@ -259,7 +273,6 @@
     SidebarContent,
     SidebarFooter,
     SidebarGroup,
-    SidebarGroupLabel,
     SidebarHeader,
     SidebarInset,
     SidebarMenu,
@@ -303,6 +316,7 @@
 
   const { t, locale } = useI18n();
   const username = computed(() => authCtx.user?.name || "User");
+  const { selectedCollection } = useCollections();
 
   const { openDialog } = useDialog();
 
@@ -385,114 +399,51 @@
   const route = useRoute();
   const router = useRouter();
 
-  const nav: {
+  type NavItem = {
     icon: Component;
     active: ComputedRef<boolean>;
-    id: number;
+    id: string;
     name: ComputedRef<string>;
     to: string;
     collapsible?: {
       active: ComputedRef<boolean>;
-      id: number;
+      id: string;
       name: ComputedRef<string>;
       to: string;
     }[];
-  }[] = [
+  };
+
+  const destination = (id: string, key: string, to: string) => ({
+    id,
+    name: computed(() => t(key)),
+    to,
+    active: computed(() => isNavigationActive(route.path, to)),
+  });
+
+  const primaryIcons = { overview: MdiHome, items: MdiPackageVariant, locations: MdiFileTree, maintenance: MdiWrench };
+  const primaryNav: NavItem[] = primaryNavigation.map(entry => ({
+    ...destination(entry.id, entry.key, entry.to),
+    icon: primaryIcons[entry.id],
+  }));
+  const tools = toolsNavigation.map(entry => destination(entry.id, entry.key, entry.to));
+  const settings = settingsNavigation.map(entry => destination(entry.id, entry.key, entry.to));
+  const secondaryNav: NavItem[] = [
     {
-      icon: MdiHome,
-      active: computed(() => route.path === "/home"),
-      id: 0,
-      name: computed(() => t("menu.home")),
-      to: "/home",
+      ...destination("tools", "menu.tools", "/collection/tools"),
+      icon: MdiToolboxOutline,
+      active: computed(() => tools.some(child => child.active.value)),
+      collapsible: tools,
     },
     {
-      icon: MdiFileTree,
-      id: 1,
-      active: computed(() => route.path === "/locations"),
-      name: computed(() => t("menu.locations")),
-      to: "/locations",
-    },
-    {
-      icon: MdiTagMultiple,
-      id: 2,
-      active: computed(() => route.path === "/tags"),
-      name: computed(() => t("global.tags")),
-      to: "/tags",
-    },
-    {
-      icon: MdiMagnify,
-      id: 3,
-      active: computed(() => route.path === "/items"),
-      name: computed(() => t("menu.search")),
-      to: "/items",
-    },
-    {
-      icon: MdiFileDocumentMultiple,
-      id: 4,
-      active: computed(() => route.path === "/templates"),
-      name: computed(() => t("menu.templates")),
-      to: "/templates",
-    },
-    {
-      icon: MdiWrench,
-      id: 5,
-      active: computed(() => route.path === "/maintenance"),
-      name: computed(() => t("menu.maintenance")),
-      to: "/maintenance",
-    },
-    {
-      icon: MdiAccount,
-      id: 6,
-      active: computed(() => route.path === "/profile"),
-      name: computed(() => t("menu.profile")),
-      to: "/profile",
-    },
-    {
+      ...destination("settings", "menu.settings", "/profile"),
       icon: MdiCog,
-      id: 7,
-      active: computed(() => route.path.includes("/collection")),
-      name: computed(() => t("menu.collection")),
-      to: "/collection/members",
-      collapsible: [
-        {
-          id: 61,
-          active: computed(() => route.path === "/collection/members"),
-          name: computed(() => t("collection.tabs.members")),
-          to: "/collection/members",
-        },
-        {
-          id: 62,
-          active: computed(() => route.path === "/collection/invites"),
-          name: computed(() => t("collection.tabs.invites")),
-          to: "/collection/invites",
-        },
-        {
-          id: 63,
-          active: computed(() => route.path === "/collection/notifiers"),
-          name: computed(() => t("collection.tabs.notifiers")),
-          to: "/collection/notifiers",
-        },
-        {
-          id: 64,
-          active: computed(() => route.path === "/collection/settings"),
-          name: computed(() => t("collection.tabs.settings")),
-          to: "/collection/settings",
-        },
-        {
-          id: 65,
-          active: computed(() => route.path === "/collection/entity-types"),
-          name: computed(() => t("collection.tabs.entity_types")),
-          to: "/collection/entity-types",
-        },
-        {
-          id: 66,
-          active: computed(() => route.path === "/collection/tools"),
-          name: computed(() => t("collection.tabs.tools")),
-          to: "/collection/tools",
-        },
-      ],
+      active: computed(() => settings.some(child => child.active.value)),
+      collapsible: settings,
     },
   ];
+  const navigationGroups = [primaryNav, secondaryNav];
+  // Keep every destination available in the keyboard quick menu as well.
+  const nav = [...primaryNav, ...secondaryNav, ...tools, ...settings];
 
   const quickMenuActions = reactive([
     ...dropdown.map(v => ({
