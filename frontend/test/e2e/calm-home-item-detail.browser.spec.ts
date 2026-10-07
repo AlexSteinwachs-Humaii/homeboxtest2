@@ -215,3 +215,74 @@ test("empty record and purchase fields respect the saved show-empty preference",
   await expect(purchase).toHaveCount(0);
   await expect(page.getByTestId("item-attachments").getByText("manual.pdf", { exact: true })).toBeVisible();
 });
+
+async function openMaintenanceItem(page: Page, context: import("@playwright/test").BrowserContext, baseURL: string) {
+  await context.addCookies([{ name: "hb.auth.session", value: "true", url: baseURL }]);
+  await mockItem(page, false);
+}
+
+test("empty maintenance offers the existing dialog and creates only on save", async ({ page, context, baseURL }) => {
+  test.slow();
+  await openMaintenanceItem(page, context, baseURL!);
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/v1/entities/drill/maintenance*", route => {
+    if (route.request().method() === "POST") {
+      created.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: "task", ...created[0] } });
+    }
+    expect(new URL(route.request().url()).searchParams.get("status")).toBe("scheduled");
+    return route.fulfill({ json: created.length ? [{ id: "task", ...created[0] }] : [] });
+  });
+  await page.goto("/item/drill");
+  const empty = page.getByTestId("item-maintenance-empty");
+  await expect(empty.getByRole("heading", { name: "No maintenance scheduled", exact: true })).toBeVisible({
+    timeout: 60000,
+  });
+  await page.screenshot({ path: "test-results/item-maintenance-empty.png", fullPage: true });
+  await empty.getByRole("button", { name: "Schedule a task", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "New Entry", exact: true })).toBeVisible();
+  await dialog.getByRole("textbox", { name: "Entry Name", exact: true }).fill("Charge batteries");
+  expect(created).toHaveLength(0);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  expect(created).toHaveLength(0);
+  await expect(empty).toBeVisible();
+  await empty.getByRole("button", { name: "Schedule a task", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "Entry Name", exact: true }).fill("Charge batteries");
+  // Use the existing date picker to select today as a scheduled calendar date.
+  await dialog.locator(".dp__input").nth(1).click();
+  await dialog.locator(".dp__today").click();
+  await dialog.getByRole("button", { name: "Select", exact: true }).click();
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(empty).toHaveCount(0);
+  expect(created).toHaveLength(1);
+  expect(created[0]!.name).toBe("Charge batteries");
+  expect(created[0]!.scheduledDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+});
+
+for (const state of ["scheduled", "failed", "loading"] as const) {
+  test(`maintenance empty state is hidden when ${state}`, async ({ page, context, baseURL }) => {
+    test.slow();
+    await openMaintenanceItem(page, context, baseURL!);
+    let release: (() => void) | undefined;
+    const held = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    await page.route("**/api/v1/entities/drill/maintenance*", async route => {
+      if (state === "loading") await held;
+      return state === "failed"
+        ? route.fulfill({ status: 500, json: { message: "Cannot load maintenance" } })
+        : route.fulfill({ json: [{ id: "task", name: "Charge batteries", scheduledDate: "2026-10-10" }] });
+    });
+    const loaded = page.waitForResponse(response => response.url().includes("/entities/drill/maintenance"));
+    await page.goto("/item/drill");
+    if (state !== "loading") await loaded;
+    await expect(page.getByTestId("item-record")).toBeVisible({ timeout: 60000 });
+    await expect(page.getByTestId("item-maintenance-empty")).toHaveCount(0);
+    release?.();
+    await loaded;
+    await expect(page.locator('a[href="/item/drill/maintenance"]')).toHaveText("Maintenance");
+  });
+}

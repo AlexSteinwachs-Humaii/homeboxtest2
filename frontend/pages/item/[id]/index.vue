@@ -4,6 +4,8 @@
   import type { AnyDetail, Detail, Details } from "~~/components/global/DetailsSection/types";
   import { filterZeroValues } from "~~/components/global/DetailsSection/types";
   import type { ItemAttachment } from "~~/lib/api/types/data-contracts";
+  import { MaintenanceFilterStatus } from "~~/lib/api/types/data-contracts";
+  import MaintenanceEditModal from "~/components/Maintenance/EditModal.vue";
   import MdiPlus from "~icons/mdi/plus";
   import MdiMinus from "~icons/mdi/minus";
   import MdiDelete from "~icons/mdi/delete";
@@ -82,6 +84,43 @@
   onMounted(() => {
     refresh();
   });
+
+  const {
+    data: scheduledMaintenance,
+    pending: maintenancePending,
+    refresh: refreshMaintenance,
+  } = useAsyncData(
+    () => `${itemId.value}_scheduled_maintenance`,
+    async () => {
+      const { data, error } = await api.items.maintenance.getLog(itemId.value, {
+        status: MaintenanceFilterStatus.MaintenanceFilterStatusScheduled,
+      });
+      if (error) {
+        return null;
+      }
+      return data;
+    }
+  );
+
+  const showMaintenanceEmpty = computed(() => !maintenancePending.value && scheduledMaintenance.value?.length === 0);
+
+  // The full log can change while the nested Maintenance tab is open.
+  watch(hasNested, nested => {
+    if (!nested) {
+      refreshMaintenance();
+    }
+  });
+
+  function scheduleTask() {
+    openDialog(DialogID.EditMaintenance, {
+      params: { type: "create", itemId: itemId.value },
+      onClose: saved => {
+        if (saved) {
+          refreshMaintenance();
+        }
+      },
+    });
+  }
 
   const lastRoute = ref(route.fullPath);
   watchEffect(() => {
@@ -888,9 +927,18 @@
                 </p>
               </div>
             </BaseCard>
+
+            <section v-if="showMaintenanceEmpty" class="rounded-xl bg-muted p-5" data-testid="item-maintenance-empty">
+              <h2 class="font-semibold">{{ $t("items.no_maintenance_scheduled") }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ $t("items.no_maintenance_scheduled_description") }}</p>
+              <Button variant="link" class="mt-2 h-auto p-0" @click="scheduleTask">
+                {{ $t("items.schedule_task") }}
+              </Button>
+            </section>
           </div>
         </div>
 
+        <MaintenanceEditModal v-if="!hasNested" />
         <template v-if="!hasNested">
           <BaseCard v-if="photos && photos.length > 0">
             <template #title> {{ $t("items.photos") }} </template>
