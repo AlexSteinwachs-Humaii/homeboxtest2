@@ -14,7 +14,8 @@ for (const empty of [false, true]) {
               : ["Garage", "Kitchen", "Closet", "Attic"].map((name, i) => ({
                   id: `place-${i}`,
                   name,
-                  itemCount: i === 0 ? 0 : i * 2,
+                  // The locations API omits itemCount when it is zero.
+                  ...(i === 0 ? {} : { itemCount: i * 2 }),
                 })),
           },
         });

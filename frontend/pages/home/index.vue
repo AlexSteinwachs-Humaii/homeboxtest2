@@ -148,8 +148,7 @@
                 <div class="min-w-0 flex-1">
                   <h3 class="break-words font-semibold">{{ item.name }}</h3>
                   <p class="mt-1 text-sm text-muted-foreground">
-                    {{ item.parent?.name }} · {{ $t("global.quantity") }}
-                    {{ item.quantity }}
+                    {{ [item.parent?.name, `${$t("global.quantity")} ${item.quantity}`].filter(Boolean).join(" · ") }}
                   </p>
                 </div>
                 <span aria-hidden="true">›</span>
@@ -176,7 +175,8 @@
                 <MdiMapMarkerOutline class="size-5 shrink-0 text-primary" aria-hidden="true" />
                 <div class="min-w-0 flex-1">
                   <h3 class="break-words font-semibold">{{ location.name }}</h3>
-                  <p class="mt-1 text-sm text-muted-foreground">{{ location.itemCount }} {{ $t("menu.items") }}</p>
+                  <!-- Location listings omit itemCount when it is zero. -->
+                  <p class="mt-1 text-sm text-muted-foreground">{{ location.itemCount ?? 0 }} {{ $t("menu.items") }}</p>
                 </div>
                 <span aria-hidden="true">›</span>
               </NuxtLink>
