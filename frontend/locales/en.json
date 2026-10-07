@@ -1,4 +1,22 @@
 {
+    "item": {
+        "capture": {
+            "title": "Add an item",
+            "findable": "A name and a location are enough to find it later.",
+            "save": "Save item",
+            "price": "Purchase price (optional)",
+            "description": "Description (optional)",
+            "photo": "Add a photo (optional)",
+            "choose_photo": "Choose a photo",
+            "no_photo": "Items without photos still appear in search.",
+            "load_failed": "Could not load the capture form. Reload the page to try again.",
+            "required": "Enter a name and choose a location.",
+            "invalid_number": "Quantity and purchase price must be valid, non-negative numbers.",
+            "create_failed": "Could not save the item. Please try again.",
+            "price_failed": "The item was saved, but its purchase price was not. You can add it from Edit.",
+            "photo_failed": "The item was saved, but a photo could not be uploaded. You can add it from Edit."
+        }
+    },
     "collection": {
         "copy_invite": "Copy Invite Link",
         "create_invite": "Create Invite",

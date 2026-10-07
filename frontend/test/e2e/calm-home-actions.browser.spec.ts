@@ -35,10 +35,10 @@ for (const legacyHeader of [false, true]) {
     await expect(page).toHaveURL(/\/items\?q=garage$/);
 
     await actions.getByRole("button", { name: "Add item", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByRole("dialog").getByRole("heading")).toContainText("Create");
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page).toHaveURL(/\/item\/new$/);
+    await expect(page.getByRole("heading", { name: "Add an item" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page).toHaveURL(/\/items$/);
     await actions.getByRole("button", { name: "Scan label", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.getByRole("dialog").locator("video")).toBeVisible();

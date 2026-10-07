@@ -236,7 +236,7 @@
               <MdiQrcodeScan />
               {{ $t("menu.scan_label") }}
             </Button>
-            <Button @click="openDialog(DialogID.CreateEntity, { params: { baseType: 'item' } })">
+            <Button @click="navigateTo('/item/new')">
               <MdiPlus />
               {{ $t("menu.add_item") }}
             </Button>
