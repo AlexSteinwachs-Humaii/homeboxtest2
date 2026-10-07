@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { EntityOut } from "../api/types/data-contracts";
-import { capturePriceUpdate } from "./capture";
+import { captureDetailsUpdate } from "./capture";
 
-describe("capture purchase price", () => {
+describe("capture follow-up details", () => {
   test("preserves the record and translates response edges to update IDs", () => {
     const item = {
       id: "item",
@@ -19,7 +19,7 @@ describe("capture purchase price", () => {
       fields: [{ id: "field", textValue: "keep" }],
       notes: "keep notes",
     } as EntityOut;
-    const update = capturePriceUpdate(item, 89, "fallback");
+    const update = captureDetailsUpdate(item, { purchasePrice: 89 }, "fallback");
     expect(update).toMatchObject({
       id: "item",
       name: "Sleeping bag",
@@ -37,10 +37,33 @@ describe("capture purchase price", () => {
   });
 
   test("accepts a zero price and a response without optional edges", () => {
-    const update = capturePriceUpdate({ tags: [] } as unknown as EntityOut, 0, "type");
+    const update = captureDetailsUpdate({ tags: [] } as unknown as EntityOut, { purchasePrice: 0 }, "type");
     expect(update.purchasePrice).toBe(0);
     expect(update.entityTypeId).toBe("type");
     expect(update.parentId).toBeNull();
     expect(update.tagIds).toEqual([]);
+  });
+
+  test("saves serial and insurance without overwriting price, model, manufacturer or parent", () => {
+    const item = {
+      tags: [{ id: "tag" }],
+      parent: { id: "parent-item" },
+      purchasePrice: 42,
+      manufacturer: "Acme",
+      modelNumber: "M1",
+      serialNumber: "",
+      insured: false,
+    } as EntityOut;
+    const update = captureDetailsUpdate(item, { serialNumber: "S1", insured: true }, "type");
+    expect(update).toMatchObject({
+      purchasePrice: 42,
+      manufacturer: "Acme",
+      modelNumber: "M1",
+      parentId: "parent-item",
+      tagIds: ["tag"],
+      serialNumber: "S1",
+      insured: true,
+    });
+    expect(item.insured).toBe(false);
   });
 });

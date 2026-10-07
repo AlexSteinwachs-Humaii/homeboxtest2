@@ -13,7 +13,8 @@
             "required": "Enter a name and choose a location.",
             "invalid_number": "Quantity and purchase price must be valid, non-negative numbers.",
             "create_failed": "Could not save the item. Please try again.",
-            "price_failed": "The item was saved, but its purchase price was not. You can add it from Edit.",
+            "advanced_summary": "Serial, model, manufacturer, parent item, insured.",
+            "details_failed": "The item was saved, but its purchase price, serial number or insurance details could not be saved. You can add them from Edit.",
             "photo_failed": "The item was saved, but a photo could not be uploaded. You can add it from Edit."
         }
     },

@@ -6,6 +6,8 @@
   import FormTextArea from "~/components/Form/TextArea.vue";
   import LocationSelector from "~/components/Location/Selector.vue";
   import TagSelector from "~/components/Tag/Selector.vue";
+  import ItemSelector from "~/components/Item/Selector.vue";
+  import FormCheckbox from "~/components/Form/Checkbox.vue";
   import PhotoUploader from "~/components/Form/PhotoUploader.vue";
   import PhotoUploaderPreview from "~/components/Form/PhotoUploaderPreview.vue";
   import {
@@ -19,7 +21,7 @@
   import { useEntityTypeStore } from "~/stores/entityTypes";
   import type { EntitySummary } from "~/lib/api/types/data-contracts";
   import { AttachmentTypes } from "~/lib/api/types/non-generated";
-  import { capturePriceUpdate } from "~/lib/items/capture";
+  import { captureDetailsUpdate } from "~/lib/items/capture";
 
   definePageMeta({ middleware: ["auth"] });
   const { t } = useI18n();
@@ -29,6 +31,8 @@
   const tags = useTagStore();
   const locations = useLocationStore();
   const types = useEntityTypeStore();
+  const { query, results, isLoading, triggerSearch } = useItemSearch(api, { immediate: false });
+  const parent = ref<EntitySummary | null>(null);
   const loading = ref(false);
   const ready = ref(false);
   const error = ref("");
@@ -39,6 +43,10 @@
     purchasePrice: "" as string | number,
     tags: [] as string[],
     description: "",
+    serialNumber: "",
+    modelNumber: "",
+    manufacturer: "",
+    insured: false,
     photos: [] as PhotoPreview[],
   });
 
@@ -87,7 +95,9 @@
     try {
       const result = await api.items.create({
         name: form.name.trim(),
-        parentId: form.location.id,
+        parentId: parent.value?.id ?? form.location.id,
+        manufacturer: form.manufacturer,
+        modelNumber: form.modelNumber,
         quantity: form.quantity,
         description: form.description,
         tagIds: form.tags,
@@ -98,13 +108,24 @@
         return;
       }
       const item = result.data;
-      // Once created, never offer another create after a price or photo failure.
-      if (price !== null) {
+      // Once created, never offer another create after a details or photo failure.
+      if (price !== null || form.serialNumber || form.insured) {
         try {
-          const update = await api.items.update(item.id, capturePriceUpdate(item, price, entityTypeId));
+          const update = await api.items.update(
+            item.id,
+            captureDetailsUpdate(
+              item,
+              {
+                ...(price !== null ? { purchasePrice: price } : {}),
+                serialNumber: form.serialNumber,
+                insured: form.insured,
+              },
+              entityTypeId
+            )
+          );
           if (update.error) throw update.error;
         } catch {
-          toast.error(t("item.capture.price_failed"));
+          toast.error(t("item.capture.details_failed"));
         }
       }
       for (const photo of form.photos) {
@@ -190,6 +211,25 @@
             />
             <p class="mt-3 text-sm text-muted-foreground">{{ $t("item.capture.no_photo") }}</p>
           </div>
+          <details class="mt-4 rounded-xl border bg-card p-4" data-testid="advanced-fields">
+            <summary class="cursor-pointer font-medium">{{ $t("items.advanced") }}</summary>
+            <p class="mt-2 text-sm text-muted-foreground">{{ $t("item.capture.advanced_summary") }}</p>
+            <div class="mt-4 flex flex-col gap-4">
+              <FormTextField v-model="form.serialNumber" :label="$t('items.serial_number')" :max-length="255" />
+              <FormTextField v-model="form.modelNumber" :label="$t('items.model_number')" :max-length="255" />
+              <FormTextField v-model="form.manufacturer" :label="$t('items.manufacturer')" :max-length="255" />
+              <ItemSelector
+                v-model="parent"
+                v-model:search="query"
+                :label="$t('items.parent_item')"
+                :items="results"
+                item-text="name"
+                :is-loading="isLoading"
+                :trigger-search="triggerSearch"
+              />
+              <FormCheckbox v-model="form.insured" :label="$t('global.insured')" />
+            </div>
+          </details>
           <PhotoUploaderPreview
             :photos="form.photos"
             @delete="index => (form.photos = deletePhoto(form.photos, index))"
