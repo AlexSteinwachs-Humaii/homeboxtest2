@@ -497,6 +497,13 @@
         "entity_type": "Entity Type"
     },
     "home": {
+        "overview_heading": "A little more organized.",
+        "overview_description": "Find what you need. Keep track of what you own.",
+        "search_inventory": "Search inventory",
+        "search_placeholder": "Find an item by name, tag or label",
+        "care_heading": "A little care goes a long way.",
+        "due": "Due",
+        "view_maintenance": "View maintenance",
         "quick_statistics": "Quick Statistics",
         "recently_added": "Recently Added",
         "storage_locations": "Storage Locations",
