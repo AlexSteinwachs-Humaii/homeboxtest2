@@ -32,6 +32,7 @@
   import ItemAttachmentsList from "~/components/Item/AttachmentsList.vue";
   import ItemImageDialog from "~/components/Item/ImageDialog.vue";
   import TagChip from "~/components/Tag/Chip.vue";
+  import { locationItemParentIds, nestedLocationItemCount } from "~/lib/locations/contents";
 
   definePageMeta({
     middleware: ["auth"],
@@ -62,6 +63,8 @@
   );
 
   const location = computed(() => locationData.value);
+  const locationStore = useLocationStore();
+  void locationStore.ensureLocationsFetched();
   const confirm = useConfirm();
 
   async function confirmDelete() {
@@ -92,7 +95,7 @@
   }
 
   const nestedLocations = computed(() => location.value?.children ?? []);
-  const parentIds = computed(() => [locationId.value, ...nestedLocations.value.map(child => child.id)]);
+  const itemQueryIds = computed(() => locationItemParentIds(location.value, locationId.value));
 
   function goToEdit() {
     navigateTo(`/location/${locationId.value}/edit`);
@@ -204,12 +207,13 @@
   const { data: itemData, refresh: refreshItemList } = useAsyncData(
     () => locationId.value + "_item_list",
     async () => {
-      if (!location.value || location.value.id !== locationId.value) {
+      const parentIds = itemQueryIds.value;
+      if (!parentIds) {
         return [];
       }
 
       const resp = await api.items.getAll({
-        parentIds: parentIds.value,
+        parentIds,
       });
 
       if (resp.error) {
@@ -220,10 +224,19 @@
       return resp.data.items;
     },
     {
-      watch: [parentIds],
+      watch: [itemQueryIds],
     }
   );
   const items = computed(() => itemData.value);
+
+  function nestedItemCount(id: string) {
+    return nestedLocationItemCount(
+      id,
+      locationStore.allLocations,
+      items.value ?? null,
+      location.value?.id === locationId.value
+    );
+  }
 </script>
 
 <template>
@@ -339,8 +352,12 @@
             class="rounded-2xl border bg-card p-4 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           >
             <h2 class="font-semibold">{{ child.name }}</h2>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {{ $t("locations.item_count", child.itemCount ?? 0) }}
+            <p v-if="nestedItemCount(child.id) !== null" class="mt-1 text-sm text-muted-foreground">
+              {{
+                $t("locations.item_count", {
+                  count: nestedItemCount(child.id),
+                })
+              }}
             </p>
           </NuxtLink>
         </div>
