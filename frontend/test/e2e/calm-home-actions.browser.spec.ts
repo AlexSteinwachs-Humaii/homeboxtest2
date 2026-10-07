@@ -40,9 +40,10 @@ for (const legacyHeader of [false, true]) {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page).toHaveURL(/\/items$/);
     await actions.getByRole("button", { name: "Scan label", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByRole("dialog").locator("video")).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/scanner$/);
+    await expect(page.getByRole("heading", { name: "Scan a label" })).toBeVisible();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page).toHaveURL(/\/items$/);
 
     // The existing header returns at every width below lg, including tablets.
     for (const width of [1023, 390]) {

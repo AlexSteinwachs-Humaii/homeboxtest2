@@ -128,13 +128,15 @@
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1.85fr)_minmax(300px,1fr)]">
       <section class="relative min-h-[520px] overflow-hidden rounded-2xl bg-[#1c2923]" :aria-label="t('scanner.title')">
         <video ref="video" class="absolute size-full object-cover" autoplay muted playsinline />
-        <div class="pointer-events-none absolute inset-x-[12%] inset-y-[14%] rounded-2xl border-2 border-[#d7e1d2]">
+        <div
+          class="pointer-events-none absolute inset-x-[12%] inset-y-[14%] z-10 rounded-2xl border-2 border-[#d7e1d2]"
+        >
           <span class="absolute -left-3 -top-3 size-7 border-l-[3px] border-t-[3px] border-[#668778]" />
           <span class="absolute -right-3 -top-3 size-7 border-r-[3px] border-t-[3px] border-[#668778]" />
           <span class="absolute -bottom-3 -left-3 size-7 border-b-[3px] border-l-[3px] border-[#668778]" />
           <span class="absolute -bottom-3 -right-3 size-7 border-b-[3px] border-r-[3px] border-[#668778]" />
         </div>
-        <p class="absolute inset-x-0 bottom-0 bg-[#1c2923]/90 p-6 text-sm text-white">
+        <p class="absolute inset-x-0 bottom-0 z-10 bg-[#1c2923]/90 p-6 text-sm text-white">
           {{ t("scanner.frame_instruction") }}
         </p>
       </section>

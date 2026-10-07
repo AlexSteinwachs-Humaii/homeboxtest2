@@ -64,8 +64,11 @@ for (const hasTasks of [true, false]) {
     await expect(page.getByRole("dialog").getByRole("heading")).toContainText("Create");
     await page.keyboard.press("Escape");
     await lead.getByRole("button", { name: "Scan label", exact: true }).click();
-    await expect(page.getByRole("dialog").locator("video")).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/scanner$/);
+    await expect(page.getByRole("heading", { name: "Scan a label" })).toBeVisible();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page).toHaveURL(/\/items$/);
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
 
     await lead.getByRole("searchbox", { name: "Search inventory" }).fill("drill & tools");
     await lead.getByRole("searchbox").press("Enter");
