@@ -144,7 +144,7 @@
               </template>
 
               <!-- makes scanner accessible easily if using legacy header -->
-              <SidebarMenuItem v-if="index === 0 && preferences.displayLegacyHeader">
+              <SidebarMenuItem v-if="index === 0 && preferences.displayLegacyHeader" class="lg:hidden">
                 <SidebarMenuButton
                   :class="{
                     'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
@@ -182,18 +182,12 @@
 
         <SidebarRail />
       </Sidebar>
-      <SidebarInset class="min-h-dvh max-w-full overflow-hidden bg-background-accent">
+      <SidebarInset class="min-h-dvh max-w-full overflow-hidden bg-background-accent lg:bg-background">
         <div class="relative flex h-full flex-col justify-center">
-          <div v-if="preferences.displayLegacyHeader">
-            <AppHeaderDecor class="-mt-10 hidden lg:block" />
-            <SidebarTrigger class="absolute left-2 top-2 hidden lg:flex" variant="default" />
-          </div>
           <!-- IMPORTANT: if you change the height of this div, alter the top value in the item edit page-->
           <div
-            class="sticky top-0 z-20 flex h-[var(--header-height-mobile)] translate-y-[-0.5px] flex-col bg-secondary p-2 shadow-md sm:h-[var(--header-height)] sm:flex-row"
-            :class="{
-              'lg:hidden': preferences.displayLegacyHeader,
-            }"
+            class="sticky top-0 z-20 flex h-[var(--header-height-mobile)] translate-y-[-0.5px] flex-col bg-secondary p-2 shadow-md sm:h-[var(--header-height)] sm:flex-row lg:hidden"
+            data-testid="mobile-shell-header"
           >
             <div class="flex h-1/2 items-center gap-2 sm:h-auto">
               <SidebarTrigger variant="default" />
@@ -221,6 +215,31 @@
                 </Button>
               </div>
             </div>
+          </div>
+
+          <div class="hidden items-center gap-3 px-6 py-5 lg:flex" data-testid="desktop-shell-actions">
+            <SidebarTrigger class="[&_svg]:text-foreground" variant="ghost" />
+            <form class="flex min-w-0 flex-1 items-center gap-2" role="search" @submit.prevent="triggerSearch">
+              <Input
+                v-model:model-value="search"
+                class="max-w-lg bg-card"
+                :aria-label="$t('global.search')"
+                :placeholder="$t('global.search')"
+                type="search"
+              />
+              <Button type="submit" variant="outline">
+                <MdiMagnify />
+                {{ $t("global.search") }}
+              </Button>
+            </form>
+            <Button variant="outline" @click="openDialog(DialogID.Scanner)">
+              <MdiQrcodeScan />
+              {{ $t("menu.scan_label") }}
+            </Button>
+            <Button @click="openDialog(DialogID.CreateEntity, { params: { baseType: 'item' } })">
+              <MdiPlus />
+              {{ $t("menu.add_item") }}
+            </Button>
           </div>
 
           <slot />
@@ -307,7 +326,6 @@
   import AppQuickMenuModal from "~/components/App/QuickMenuModal.vue";
   import AppScannerModal from "~/components/App/ScannerModal.vue";
   import AppLogo from "~/components/App/Logo.vue";
-  import AppHeaderDecor from "~/components/App/HeaderDecor.vue";
   import AppHeaderText from "~/components/App/HeaderText.vue";
   import CollectionSelector from "~/components/Collection/Selector.vue";
   import CollectionCreateModal from "~/components/Collection/CreateModal.vue";

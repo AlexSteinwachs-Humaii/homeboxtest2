@@ -767,6 +767,8 @@
         "total_entries": "Total Entries"
     },
     "menu": {
+        "add_item": "Add item",
+        "scan_label": "Scan label",
         "collection": "Collection",
         "create_item": "Item / Asset",
         "create_location": "Location",

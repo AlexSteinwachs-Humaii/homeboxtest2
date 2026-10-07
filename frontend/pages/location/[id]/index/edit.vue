@@ -363,7 +363,7 @@
 
     <section class="relative">
       <div
-        class="sticky z-10 my-4 flex items-center justify-between gap-2"
+        class="sticky z-10 my-4 flex items-center justify-between gap-2 lg:top-1"
         :class="{
           'top-[calc(var(--header-height-mobile)+0.25rem)] sm:top-[calc(var(--header-height)+0.25rem)]':
             !preferences.displayLegacyHeader,
