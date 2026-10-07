@@ -1,5 +1,5 @@
 <template>
-  <Card class="relative overflow-hidden">
+  <Card class="relative overflow-hidden rounded-2xl border shadow-none" data-testid="item-card">
     <div v-if="tableRow" class="absolute left-1 top-1 z-10">
       <Checkbox
         class="size-5 bg-accent hover:bg-background-accent"
@@ -8,35 +8,44 @@
         @update:model-value="tableRow.toggleSelected()"
       />
     </div>
-    <NuxtLink :to="`/item/${item.id}`">
-      <div class="relative h-[200px]">
+    <NuxtLink
+      class="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      :to="`/item/${item.id}`"
+    >
+      <div class="relative h-[200px] overflow-hidden bg-muted lg:h-[120px]">
         <img
           v-if="imageUrl && objectContain"
-          class="absolute h-[200px] w-full object-cover blur-md"
+          class="absolute size-full object-cover blur-md"
           loading="lazy"
           :src="imageUrl"
           alt=""
         />
         <img
           v-if="imageUrl"
-          class="absolute h-[200px] w-full shadow-md"
+          class="absolute size-full"
           :class="objectContain ? 'object-contain' : 'object-cover'"
           loading="lazy"
           :src="imageUrl"
           :alt="item.name"
         />
-        <div class="absolute inset-x-1 bottom-1">
-          <Badge class="text-wrap bg-secondary text-secondary-foreground hover:bg-secondary/70 hover:underline">
-            <NuxtLink v-if="item.parent" :to="`/location/${item.parent.id}`">
-              {{ locationString }}
-            </NuxtLink>
-          </Badge>
-        </div>
       </div>
-      <div class="col-span-4 flex grow flex-col gap-y-1 p-4 pt-2">
-        <h2 class="line-clamp-2 text-ellipsis text-wrap text-lg font-bold">{{ item.name }}</h2>
-        <Separator class="mb-1" />
-        <TooltipProvider :delay-duration="0">
+      <div class="flex flex-col gap-y-1 p-4">
+        <h2 class="line-clamp-2 text-ellipsis text-wrap text-lg font-bold">
+          {{ item.name }}
+        </h2>
+        <p class="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+          <span :aria-label="$t('items.asset_id')">{{ item.assetId }}</span>
+          <template v-if="locationString"
+            ><span aria-hidden="true">·</span><span>{{ locationString }}</span></template
+          >
+          <span aria-hidden="true">·</span>
+          <span>{{ $t("global.quantity") }} {{ item.quantity }}</span>
+          <template v-if="Number(item.purchasePrice)">
+            <span aria-hidden="true">·</span>
+            <span :aria-label="$t('items.purchase_price')"><Currency :amount="item.purchasePrice" /></span>
+          </template>
+        </p>
+        <TooltipProvider v-if="item.insured || item.archived" :delay-duration="0">
           <div class="flex items-center gap-2">
             <Tooltip v-if="item.insured">
               <TooltipTrigger>
@@ -54,25 +63,13 @@
                 {{ $t("global.archived") }}
               </TooltipContent>
             </Tooltip>
-            <div class="grow" />
-            <Tooltip>
-              <TooltipTrigger>
-                <Badge>
-                  {{ item.quantity }}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                {{ $t("global.quantity") }}
-              </TooltipContent>
-            </Tooltip>
           </div>
         </TooltipProvider>
-        <Markdown class="mb-2 line-clamp-3 text-ellipsis" :source="item.description" />
-        <div class="-mr-1 mt-auto flex flex-wrap justify-end gap-2">
-          <TagChip v-for="tag in itemTags" :key="tag.id" :tag="tag" size="sm" :ancestors="tag.ancestors" />
-        </div>
       </div>
     </NuxtLink>
+    <div v-if="itemTags.length" class="flex flex-wrap justify-end gap-2 px-4 pb-4">
+      <TagChip v-for="tag in itemTags" :key="tag.id" :tag="tag" size="sm" :ancestors="tag.ancestors" />
+    </div>
   </Card>
 </template>
 
@@ -80,11 +77,9 @@
   import type { EntityOut, EntitySummary } from "~~/lib/api/types/data-contracts";
   import MdiShieldCheck from "~icons/mdi/shield-check";
   import MdiArchive from "~icons/mdi/archive";
-  import { Badge } from "@/components/ui/badge";
   import { Card } from "@/components/ui/card";
   import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-  import { Separator } from "@/components/ui/separator";
-  import Markdown from "@/components/global/Markdown.vue";
+  import Currency from "@/components/global/Currency.vue";
   import TagChip from "@/components/Tag/Chip.vue";
   import type { Row } from "@tanstack/vue-table";
   import { Checkbox } from "@/components/ui/checkbox";
