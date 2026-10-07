@@ -78,7 +78,9 @@ for (const savedTable of [false, true]) {
           json:
             url.searchParams.get("isLocation") === "true"
               ? { items: [{ id: "garage", name: "Garage" }] }
-              : { items, total: 3, page: 1, pageSize: 12 },
+              : url.searchParams.get("q") === "no matching items"
+                ? { items: [], total: 0, page: 1, pageSize: 12 }
+                : { items, total: 3, page: 1, pageSize: 12 },
         });
       if (path === "/entities/drill")
         return route.fulfill({
@@ -134,12 +136,26 @@ for (const savedTable of [false, true]) {
     await page.getByRole("button", { name: "Clear selection", exact: true }).click();
     await expect(move).toHaveCount(0);
     await expect(checkbox).not.toBeChecked();
+    await expect(page.getByText("2 selected", { exact: true })).toHaveCount(0);
+    // Deselecting the last card also hides the shared actions, without Clear selection.
+    await checkbox.click();
+    await expect(move).toBeVisible();
+    await checkbox.click();
+    await expect(move).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open menu", exact: true })).toHaveCount(0);
     await tableButton.click();
     await expect(cards).toHaveCount(0);
     await expect(page.getByRole("table")).toBeVisible();
     await page.reload();
     await expect(page.getByRole("table")).toBeVisible();
     await cardButton.click();
+    await expect(cards).toHaveCount(3);
+    // Empty filtered results must not show an impossible 1–0 range.
+    const search = page.getByRole("textbox", { name: "Search", exact: true });
+    await search.fill("no matching items");
+    await expect(cards).toHaveCount(0);
+    await expect(page.getByText("Showing 0–0 of 0", { exact: true })).toBeVisible();
+    await search.fill("");
     await expect(cards).toHaveCount(3);
     await drill.getByRole("link").click();
     await expect(page).toHaveURL(/\/item\/drill$/);
