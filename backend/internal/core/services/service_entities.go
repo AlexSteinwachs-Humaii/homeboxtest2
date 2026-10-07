@@ -603,6 +603,41 @@ func (svc *EntityService) ExportCSV(ctx context.Context, gid uuid.UUID, hbURL st
 	return rows, nil
 }
 
+// ExportDashboardInventoryCSV exports the same active inventory counted by
+// StatsGroup. GetAll remains unfiltered so excluded ancestors are still available
+// for canonical parent references and location paths. There is no page limit.
+func (svc *EntityService) ExportDashboardInventoryCSV(ctx context.Context, gid uuid.UUID, hbURL string) ([][]string, error) {
+	ctx, span := entityServiceTracer().Start(ctx, "service.EntityService.ExportDashboardInventoryCSV",
+		trace.WithAttributes(attribute.String("group.id", gid.String())))
+	defer span.End()
+
+	all, err := svc.repo.Entities.GetAll(ctx, gid)
+	if err != nil {
+		recordServiceSpanError(span, err)
+		return nil, err
+	}
+	items := make([]repo.EntityOut, 0, len(all))
+	for _, item := range all {
+		// Match StatsGroup's inner join on entity type, not merely !IsLocation.
+		if !item.Archived && item.EntityType != nil && !item.EntityType.IsLocation {
+			items = append(items, item)
+		}
+	}
+
+	sheet := reporting.IOSheet{}
+	if err := sheet.ReadItemsWithAncestors(ctx, items, all, gid, svc.repo, hbURL); err != nil {
+		recordServiceSpanError(span, err)
+		return nil, err
+	}
+	rows, err := sheet.CSV()
+	if err != nil {
+		recordServiceSpanError(span, err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("entities.count", len(items)))
+	return rows, nil
+}
+
 func (svc *EntityService) ExportBillOfMaterialsCSV(ctx context.Context, gid uuid.UUID) ([]byte, error) {
 	ctx, span := entityServiceTracer().Start(ctx, "service.EntityService.ExportBillOfMaterialsCSV",
 		trace.WithAttributes(attribute.String("group.id", gid.String())))

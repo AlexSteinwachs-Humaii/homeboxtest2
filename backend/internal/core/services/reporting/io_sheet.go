@@ -200,12 +200,20 @@ func (s *IOSheet) Read(data io.Reader) error {
 	return nil
 }
 
-// ReadItems writes the sheet to a writer.
+// ReadItems builds an export sheet using the exported entities as ancestry context.
 func (s *IOSheet) ReadItems(ctx context.Context, entities []repo.EntityOut, gid uuid.UUID, repos *repo.AllRepos, hbURL string) error {
+	return s.ReadItemsWithAncestors(ctx, entities, entities, gid, repos, hbURL)
+}
+
+// ReadItemsWithAncestors builds a sheet from selected rows while retaining the
+// full authorized collection for parent references. Custom columns come only
+// from exported rows, not from excluded ancestors.
+func (s *IOSheet) ReadItemsWithAncestors(ctx context.Context, entities, ancestors []repo.EntityOut, gid uuid.UUID, repos *repo.AllRepos, hbURL string) error {
 	s.Rows = make([]ExportCSVRow, len(entities))
+	s.headers = nil
 
 	extraHeaders := map[string]struct{}{}
-	entitiesByID := lo.SliceToMap(entities, func(item repo.EntityOut) (uuid.UUID, repo.EntityOut) {
+	entitiesByID := lo.SliceToMap(ancestors, func(item repo.EntityOut) (uuid.UUID, repo.EntityOut) {
 		return item.ID, item
 	})
 
