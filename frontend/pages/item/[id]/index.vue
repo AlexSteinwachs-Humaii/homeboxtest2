@@ -963,7 +963,11 @@
     </section>
 
     <section v-if="items && items.length > 0" class="mt-6">
-      <ItemViewSelectable :items="items" @refresh="refreshItemList" />
+      <ItemViewSelectable
+        :items="items"
+        :include-maintenance-modal="hasNested && !route.path.endsWith('/maintenance')"
+        @refresh="refreshItemList"
+      />
     </section>
   </BaseContainer>
 </template>

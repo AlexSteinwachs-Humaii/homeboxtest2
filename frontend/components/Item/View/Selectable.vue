@@ -19,6 +19,8 @@
     locationFlatTree?: FlatTreeItem[];
     pagination?: Pagination;
     disableSort?: boolean;
+    // The item page already mounts this dialog on Details. Mounting both opens two copies.
+    includeMaintenanceModal?: boolean;
   }>();
 
   const emit = defineEmits<{
@@ -61,7 +63,7 @@
 
 <template>
   <section>
-    <MaintenanceEditModal />
+    <MaintenanceEditModal v-if="includeMaintenanceModal !== false" />
     <ItemChangeDetails />
 
     <BaseSectionHeader class="flex items-center justify-between" :class="{ 'mb-2 mt-4': !externalPagination }">

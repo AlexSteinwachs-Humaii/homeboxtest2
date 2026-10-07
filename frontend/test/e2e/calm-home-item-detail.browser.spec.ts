@@ -262,6 +262,69 @@ test("empty maintenance offers the existing dialog and creates only on save", as
   expect(created[0]!.scheduledDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 });
 
+test("details scheduling stays one dialog, and the maintenance tab can still create", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.slow();
+  await openMaintenanceItem(page, context, baseURL!);
+  await page.route("**/api/v1/entities**", route => {
+    const url = new URL(route.request().url());
+    if (!url.pathname.endsWith("/entities") || !url.searchParams.has("parentIds")) {
+      return route.fallback();
+    }
+    return route.fulfill({
+      json: {
+        items: [
+          {
+            id: "bit",
+            name: "Drill bit",
+            assetId: "001-025",
+            quantity: 1,
+            insured: false,
+            purchasePrice: 0,
+            createdAt: "2026-06-01T00:00:00Z",
+            updatedAt: "2026-06-01T00:00:00Z",
+            tags: [],
+          },
+        ],
+        total: 1,
+      },
+    });
+  });
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/v1/entities/drill/maintenance*", route => {
+    if (route.request().method() === "POST") {
+      created.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: "task", ...created[0] } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/item/drill");
+  const empty = page.getByTestId("item-maintenance-empty");
+  await expect(empty).toBeVisible({ timeout: 60000 });
+  await expect(page.getByRole("heading", { name: "Drill bit", exact: true })).toBeVisible();
+  await empty.getByRole("button", { name: "Schedule a task", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "New Entry", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.locator('a[href="/item/drill/maintenance"]').click();
+  await expect(page.getByRole("button", { name: "New", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("textbox", { name: "Entry Name", exact: true }).fill("Sharpen bit");
+  await dialog.locator(".dp__input").nth(1).click();
+  await dialog.locator(".dp__today").click();
+  await dialog.getByRole("button", { name: "Select", exact: true }).click();
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(created).toHaveLength(1);
+  expect(created[0]!.name).toBe("Sharpen bit");
+});
+
 for (const state of ["scheduled", "failed", "loading"] as const) {
   test(`maintenance empty state is hidden when ${state}`, async ({ page, context, baseURL }) => {
     test.slow();
