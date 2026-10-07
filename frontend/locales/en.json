@@ -762,6 +762,12 @@
     "languages.en@pirate": "English (Pirate)",
     "languages.sr-RS": "Serbian (Serbia)",
     "locations": {
+        "add_location": "Add location",
+        "find_location": "Find a location",
+        "places_summary": "{count, plural, one {# place} other {# places}} · rooms, shelves and boxes",
+        "item_count": "{count, plural, one {# item} other {# items}}",
+        "nested_summary": "{count} inside · {names}",
+        "no_nested_locations": "No nested locations",
         "child_locations": "Child Locations",
         "collapse_tree": "Collapse Tree",
         "expand_tree": "Expand Tree",
