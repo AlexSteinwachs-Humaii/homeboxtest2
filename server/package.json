@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.44.5",
+    "hash-wasm": "^4.12.0",
     "hono": "^4.9.8",
     "yaml": "^2.8.1"
   }

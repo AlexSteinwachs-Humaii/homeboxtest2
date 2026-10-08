@@ -1,5 +1,10 @@
+import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
 
+import { mailerFromConfig } from "./auth/mailer.ts";
+import { mountAuthRoutes, type AuthDeps } from "./auth/routes.ts";
+import type { OidcRuntime } from "./auth/oidc.ts";
+import type { MailSender } from "./auth/users.ts";
 import type { ServerConfig } from "./config.ts";
 import { readStatic } from "./static.ts";
 
@@ -17,7 +22,10 @@ export type StatusBody = {
   telemetry: { enabled: boolean };
 };
 
-export function statusBody(config: Pick<ServerConfig, "demo" | "allowRegistration">): StatusBody {
+export function statusBody(
+  config: Pick<ServerConfig, "demo" | "allowRegistration" | "allowLocalLogin" | "oidc">,
+  oidcEnabled = false,
+): StatusBody {
   return {
     health: true,
     versions: ["v1"],
@@ -28,15 +36,43 @@ export function statusBody(config: Pick<ServerConfig, "demo" | "allowRegistratio
     demo: config.demo,
     allowRegistration: config.allowRegistration,
     labelPrinting: false,
-    oidc: { enabled: false, allowLocal: true },
+    oidc: {
+      enabled: oidcEnabled,
+      allowLocal: config.allowLocalLogin,
+      buttonText: config.oidc.buttonText,
+      autoRedirect: config.oidc.autoRedirect,
+    },
     telemetry: { enabled: false },
   };
 }
 
-export function createApp(config: ServerConfig, env: Record<string, string | undefined> = process.env): Hono {
-  const app = new Hono();
+export type CreateAppOptions = {
+  db?: Database;
+  oidc?: OidcRuntime | null;
+  mailer?: MailSender | null;
+  env?: Record<string, string | undefined>;
+};
 
-  app.get("/api/v1/status", (c) => c.json(statusBody(config)));
+export function createApp(
+  config: ServerConfig,
+  env: Record<string, string | undefined> = process.env,
+  options: CreateAppOptions = {},
+): Hono {
+  const app = new Hono();
+  const oidc = options.oidc ?? null;
+
+  app.get("/api/v1/status", (c) => c.json(statusBody(config, Boolean(oidc))));
+
+  if (options.db) {
+    const deps: AuthDeps = {
+      db: options.db,
+      config,
+      oidc,
+      mailer: options.mailer === undefined ? mailerFromConfig(config.mailer) : options.mailer,
+      env: options.env ?? env,
+    };
+    mountAuthRoutes(app, deps);
+  }
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

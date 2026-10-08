@@ -277,11 +277,12 @@ describe("http", () => {
     writeFileSync(join(publicDir, "index.html"), "<!doctype html><head><title>Homebox</title></head><body>inventory</body>");
     writeFileSync(join(publicDir, "app.js"), "console.log('asset');");
 
-    const running = startServer(
+    const running = await startServer(
       envFor(dbPath(dir), {
         HBOX_WEB_PORT: "7745",
         HBOX_STATIC_DIR: publicDir,
         LARINE_ACTIVE_WORK_ITEM_ID: "wi-1",
+        HBOX_AUTH_API_KEY_PEPPER: "test-pepper-not-for-production-use!!",
       }),
     );
     stops.push(running.stop);

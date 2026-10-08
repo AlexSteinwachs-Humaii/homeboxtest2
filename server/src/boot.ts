@@ -2,6 +2,8 @@ import type { Server } from "bun";
 import type { Database } from "bun:sqlite";
 import { resolve } from "node:path";
 
+import { setApiKeyPepper, assertApiKeyPepper } from "./auth/token.ts";
+import { initOidc, type OidcRuntime } from "./auth/oidc.ts";
 import { createApp } from "./app.ts";
 import { loadConfig, type ServerConfig } from "./config.ts";
 import { applyConnectionPragmas, openDatabase, type ConnectionPragmas } from "./db.ts";
@@ -48,9 +50,20 @@ export type RunningServer = PreparedDatabase & {
   stop: () => void;
 };
 
-export function startServer(env: Record<string, string | undefined>, args: string[] = []): RunningServer {
+export async function startServer(
+  env: Record<string, string | undefined>,
+  args: string[] = [],
+): Promise<RunningServer> {
+  const migrationsDir = resolveMigrationsDir(env.HBOX_MIGRATIONS_DIR);
+  const preview = loadConfig(env, args, migrationsDir, env.HBOX_STATIC_DIR ? resolve(env.HBOX_STATIC_DIR) : undefined);
+  assertApiKeyPepper(preview.apiKeyPepper);
+  setApiKeyPepper(preview.apiKeyPepper);
+  let oidc: OidcRuntime | null = null;
+  if (preview.oidc.enabled) {
+    oidc = await initOidc(preview);
+  }
   const prepared = prepareDatabase(env, args);
-  const app = createApp(prepared.config, env);
+  const app = createApp(prepared.config, env, { db: prepared.db, oidc });
   const server = Bun.serve({
     hostname: prepared.config.host,
     port: prepared.config.port,

@@ -77,3 +77,20 @@ export function formatSqliteDateTime(date: Date): string {
 export function sqliteNow(): string {
   return formatSqliteDateTime(new Date());
 }
+
+// modernc writes `2006-01-02 15:04:05.999999999-07:00`. Existing rows may omit
+// the fraction or use `Z`. Parsed only to compare instants; the stored text is
+// not rewritten.
+export function parseSqliteDateTime(value: string): Date {
+  const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`unrecognized sqlite datetime ${value}`);
+  }
+  const fraction = match[3] ? match[3].slice(1, 4).padEnd(3, "0") : "000";
+  let offset = match[4];
+  if (offset === "Z") offset = "+00:00";
+  else if (/^[+-]\d{4}$/.test(offset)) offset = `${offset.slice(0, 3)}:${offset.slice(3)}`;
+  const parsed = new Date(`${match[1]}T${match[2]}.${fraction}${offset}`);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`unrecognized sqlite datetime ${value}`);
+  return parsed;
+}

@@ -184,6 +184,68 @@ export const maintenanceEntries = sqliteTable("maintenance_entries", {
   entityId: uuidBlob("entity_id").notNull(),
 });
 
+const rawBlob = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType() {
+    return "blob";
+  },
+  toDriver(value: Uint8Array): Uint8Array {
+    if (!(value instanceof Uint8Array)) {
+      throw new Error("refusing to store a non-blob token");
+    }
+    return new Uint8Array(value);
+  },
+  fromDriver(value: unknown): Uint8Array {
+    if (value instanceof Uint8Array) return new Uint8Array(value);
+    throw new Error(`refusing to coerce token blob from ${value === null ? "null" : typeof value}`);
+  },
+});
+
+export const authTokens = sqliteTable("auth_tokens", {
+  id: uuidBlob("id").primaryKey().notNull(),
+  createdAt: storedText("created_at").notNull(),
+  updatedAt: storedText("updated_at").notNull(),
+  token: rawBlob("token").notNull(),
+  expiresAt: storedText("expires_at").notNull(),
+  userAuthTokens: uuidBlob("user_auth_tokens"),
+});
+
+export const authRoles = sqliteTable("auth_roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  role: text("role").notNull(),
+  authTokensRoles: uuidBlob("auth_tokens_roles"),
+});
+
+export const passwordResetTokens = sqliteTable("password_reset_tokens", {
+  id: uuidBlob("id").primaryKey().notNull(),
+  createdAt: storedText("created_at").notNull(),
+  updatedAt: storedText("updated_at").notNull(),
+  userId: uuidBlob("user_id").notNull(),
+  token: rawBlob("token").notNull(),
+  expiresAt: storedText("expires_at").notNull(),
+  usedAt: storedText("used_at"),
+});
+
+export const apiKeys = sqliteTable("api_keys", {
+  id: uuidBlob("id").primaryKey().notNull(),
+  createdAt: storedText("created_at").notNull(),
+  updatedAt: storedText("updated_at").notNull(),
+  userId: uuidBlob("user_id").notNull(),
+  name: text("name").notNull(),
+  token: rawBlob("token").notNull(),
+  expiresAt: storedText("expires_at"),
+  lastUsedAt: storedText("last_used_at"),
+});
+
+export const groupInvitationTokens = sqliteTable("group_invitation_tokens", {
+  id: uuidBlob("id").primaryKey().notNull(),
+  createdAt: storedText("created_at").notNull(),
+  updatedAt: storedText("updated_at").notNull(),
+  token: rawBlob("token").notNull(),
+  expiresAt: storedText("expires_at").notNull(),
+  uses: integer("uses").notNull(),
+  groupInvitationTokens: uuidBlob("group_invitation_tokens"),
+});
+
 export const attachments = sqliteTable("attachments", {
   id: uuidBlob("id").primaryKey().notNull(),
   createdAt: storedText("created_at").notNull(),
@@ -208,4 +270,9 @@ export const schema = {
   tagEntities,
   maintenanceEntries,
   attachments,
+  authTokens,
+  authRoles,
+  passwordResetTokens,
+  apiKeys,
+  groupInvitationTokens,
 };

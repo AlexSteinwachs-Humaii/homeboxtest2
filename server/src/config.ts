@@ -7,6 +7,32 @@ export const DEFAULT_SQLITE_PATH = "/data/homebox.db";
 export const DEFAULT_PORT = 7745;
 export const DEFAULT_HOST = "0.0.0.0";
 
+export type OidcConfig = {
+  enabled: boolean;
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+  scope: string;
+  allowedGroups: string;
+  groupClaim: string;
+  emailClaim: string;
+  nameClaim: string;
+  emailVerifiedClaim: string;
+  buttonText: string;
+  autoRedirect: boolean;
+  verifyEmail: boolean;
+  stateExpiryMs: number;
+  requestTimeoutMs: number;
+};
+
+export type MailerConfig = {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  from: string;
+};
+
 export type ServerConfig = {
   driver: string;
   sqlitePath: string;
@@ -16,6 +42,14 @@ export type ServerConfig = {
   migrationsDir: string;
   demo: boolean;
   allowRegistration: boolean;
+  allowLocalLogin: boolean;
+  hostname: string;
+  trustProxy: boolean;
+  cookieSecure: boolean;
+  apiKeyPepper: string;
+  passwordProtectionDisabled: boolean;
+  oidc: OidcConfig;
+  mailer: MailerConfig;
 };
 
 type Env = Record<string, string | undefined>;
@@ -85,9 +119,51 @@ export function loadConfig(env: Env, args: string[] = [], migrationsDir?: string
     port,
     staticDir: staticDir ?? env.HBOX_STATIC_DIR ?? "frontend/.output/public",
     migrationsDir: migrationsDir ?? env.HBOX_MIGRATIONS_DIR ?? "",
-    demo: parseBool(env.HBOX_DEMO, false),
-    allowRegistration: parseBool(env.HBOX_OPTIONS_ALLOW_REGISTRATION, true),
+    demo: parseBool(env.HBOX_DEMO, file.demo ?? false),
+    allowRegistration: parseBool(env.HBOX_OPTIONS_ALLOW_REGISTRATION, file.allowRegistration ?? true),
+    allowLocalLogin: parseBool(env.HBOX_OPTIONS_ALLOW_LOCAL_LOGIN, file.allowLocalLogin ?? true),
+    hostname: env.HBOX_OPTIONS_HOSTNAME ?? file.hostname ?? "",
+    trustProxy: parseBool(env.HBOX_OPTIONS_TRUST_PROXY, file.trustProxy ?? false),
+    cookieSecure: false,
+    apiKeyPepper: env.HBOX_AUTH_API_KEY_PEPPER ?? file.apiKeyPepper ?? "",
+    passwordProtectionDisabled: env.UNSAFE_DISABLE_PASSWORD_PROJECTION === "yes_i_am_sure",
+    oidc: {
+      enabled: parseBool(env.HBOX_OIDC_ENABLED, file.oidcEnabled ?? false),
+      issuerUrl: env.HBOX_OIDC_ISSUER_URL ?? file.oidcIssuerUrl ?? "",
+      clientId: env.HBOX_OIDC_CLIENT_ID ?? file.oidcClientId ?? "",
+      clientSecret: env.HBOX_OIDC_CLIENT_SECRET ?? file.oidcClientSecret ?? "",
+      scope: env.HBOX_OIDC_SCOPE ?? file.oidcScope ?? "openid profile email",
+      allowedGroups: env.HBOX_OIDC_ALLOWED_GROUPS ?? file.oidcAllowedGroups ?? "",
+      groupClaim: env.HBOX_OIDC_GROUP_CLAIM ?? "groups",
+      emailClaim: env.HBOX_OIDC_EMAIL_CLAIM ?? "email",
+      nameClaim: env.HBOX_OIDC_NAME_CLAIM ?? "name",
+      emailVerifiedClaim: env.HBOX_OIDC_EMAIL_VERIFIED_CLAIM ?? "email_verified",
+      buttonText: env.HBOX_OIDC_BUTTON_TEXT ?? "Sign in with OIDC",
+      autoRedirect: parseBool(env.HBOX_OIDC_AUTO_REDIRECT, false),
+      verifyEmail: parseBool(env.HBOX_OIDC_VERIFY_EMAIL, false),
+      stateExpiryMs: parseDuration(env.HBOX_OIDC_STATE_EXPIRY, 10 * 60 * 1000),
+      requestTimeoutMs: parseDuration(env.HBOX_OIDC_REQUEST_TIMEOUT, 30 * 1000),
+    },
+    mailer: {
+      host: env.HBOX_MAILER_HOST ?? file.mailerHost ?? "",
+      port: Number(env.HBOX_MAILER_PORT ?? file.mailerPort ?? 0) || 0,
+      username: env.HBOX_MAILER_USERNAME ?? file.mailerUsername ?? "",
+      password: env.HBOX_MAILER_PASSWORD ?? file.mailerPassword ?? "",
+      from: env.HBOX_MAILER_FROM ?? file.mailerFrom ?? "",
+    },
   };
+}
+
+export function parseDuration(value: string | undefined, fallbackMs: number): number {
+  if (!value) return fallbackMs;
+  const match = /^(\d+)(ms|s|m|h)$/.exec(value.trim());
+  if (!match) return fallbackMs;
+  const amount = Number(match[1]);
+  const unit = match[2];
+  if (unit === "ms") return amount;
+  if (unit === "s") return amount * 1000;
+  if (unit === "m") return amount * 60 * 1000;
+  return amount * 60 * 60 * 1000;
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -103,6 +179,23 @@ type FileConfig = {
   sqlitePath?: string;
   host?: string;
   port?: string;
+  demo?: boolean;
+  allowRegistration?: boolean;
+  allowLocalLogin?: boolean;
+  hostname?: string;
+  trustProxy?: boolean;
+  apiKeyPepper?: string;
+  oidcEnabled?: boolean;
+  oidcIssuerUrl?: string;
+  oidcClientId?: string;
+  oidcClientSecret?: string;
+  oidcScope?: string;
+  oidcAllowedGroups?: string;
+  mailerHost?: string;
+  mailerPort?: string;
+  mailerUsername?: string;
+  mailerPassword?: string;
+  mailerFrom?: string;
 };
 
 // The Go server takes an optional YAML file as its first argument (Docker CMD is
@@ -128,11 +221,32 @@ function readConfigFile(args: string[]): FileConfig {
   const root = parsed as Record<string, unknown>;
   const database = asRecord(root.database);
   const web = asRecord(root.web);
+  const options = asRecord(root.options);
+  const auth = asRecord(root.auth);
+  const oidc = asRecord(root.oidc);
+  const mailer = asRecord(root.mailer);
   return {
     driver: asString(database?.driver),
     sqlitePath: asString(database?.sqlite_path),
     host: asString(web?.host),
     port: asString(web?.port),
+    demo: asBool(root.demo),
+    allowRegistration: asBool(options?.allow_registration ?? options?.disable_registration),
+    allowLocalLogin: asBool(options?.allow_local_login),
+    hostname: asString(options?.hostname),
+    trustProxy: asBool(options?.trust_proxy),
+    apiKeyPepper: asString(auth?.api_key_pepper),
+    oidcEnabled: asBool(oidc?.enabled),
+    oidcIssuerUrl: asString(oidc?.issuer_url),
+    oidcClientId: asString(oidc?.client_id),
+    oidcClientSecret: asString(oidc?.client_secret),
+    oidcScope: asString(oidc?.scope),
+    oidcAllowedGroups: asString(oidc?.allowed_groups),
+    mailerHost: asString(mailer?.host),
+    mailerPort: asString(mailer?.port),
+    mailerUsername: asString(mailer?.username),
+    mailerPassword: asString(mailer?.password),
+    mailerFrom: asString(mailer?.from),
   };
 }
 
@@ -144,5 +258,15 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 function asString(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function asBool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "y"].includes(normalized)) return true;
+    if (["0", "false", "no", "n"].includes(normalized)) return false;
+  }
   return undefined;
 }
