@@ -7,9 +7,8 @@ import { StartupError } from "./errors.ts";
 export const DEFAULT_SQLITE_PATH = "/data/homebox.db";
 export const DEFAULT_PORT = 7745;
 export const DEFAULT_HOST = "0.0.0.0";
-// Directory name of the Expo web export inside the image (WORKDIR /app).
-// Dockerfiles set HBOX_STATIC_DIR=/app/web. This is not the Nuxt output.
-export const DEFAULT_STATIC_DIR = "web";
+// Already-built Vue assets (nuxt generate). Dockerfiles copy this to /app and set HBOX_STATIC_DIR.
+export const DEFAULT_STATIC_DIR = "frontend/.output/public";
 
 export type OidcConfig = {
   enabled: boolean;

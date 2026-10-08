@@ -91,7 +91,7 @@ On the website, sign in against the Bun server (the address is the page origin w
 
 Labels, QR, CSV import/export, collection import/export, profile, collection settings, members, invites, notifiers, entity types, and templates open from Tools. Each one calls an existing `/api/v1` route on the Bun server. Tags, language, and theme stay named and say they are not in this release. A Vue address such as `/profile` or `/reports/label-generator` opens that tool; an unknown address names the page instead of a blank shell.
 
-The production container serves `pnpm run export:web` (`expo export --platform web`) from the Bun process on port 7745. That export is static files under `/app/web`. It does not include the Nuxt app, and the browser does not open `homebox.db`. Inventory calls go to same-origin `/api/v1` on the Bun server (`EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same` is set only for that export). There are no Expo Router API routes.
+The production container serves the already-built Vue app (`frontend/.output/public`) and `/api/v1` from one Bun process on port 7745. It does not compile Go. The browser does not open `homebox.db`. `pnpm run export:web` writes that Vue generate into `mobile/dist`, which is what the preview command serves. The Expo web bundle is `pnpm run export:expo` and is not the website in this image.
 
 ## Tests
 
@@ -107,7 +107,7 @@ The same account on both clients is `server/src/contract/cross-client.test.ts`. 
 The browser walk is `server/src/web-inventory.browser.test.ts`. Export the web client, then run it against the Bun server (it checks SQLite for the new item, the photo, and the completed maintenance row):
 
 ```bash
-cd mobile && EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same pnpm run export:web
+cd mobile && EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same pnpm run export:expo
 cd ../server && HBOX_WEB_BROWSER=1 bun test src/web-inventory.browser.test.ts
 ```
 

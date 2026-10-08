@@ -3,8 +3,7 @@ import { extname, resolve, sep } from "node:path";
 
 const HTML_HEAD = /<head(?:\s[^>]*)?>/i;
 
-// Inject deployment context into the Expo web shell's <head>. The Nuxt app is
-// not served.
+// Inject deployment context into the served website <head> (the Vue generate output).
 export function injectLarineContext(html: string, env: Record<string, string | undefined>): string {
   const parts: string[] = [];
   for (const [name, id] of [

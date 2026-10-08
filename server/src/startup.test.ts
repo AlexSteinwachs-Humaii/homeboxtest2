@@ -71,8 +71,7 @@ describe("sqlite path and postgres rejection", () => {
     expect(config.port).toBe(7745);
     expect(config.sqlitePath).toBe("/data/homebox.db");
     expect(config.staticDir).toBe(DEFAULT_STATIC_DIR);
-    expect(config.staticDir).toBe("web");
-    expect(config.staticDir).not.toContain(".output");
+    expect(config.staticDir).toBe("frontend/.output/public");
   });
 
   test("a config file path is honored and still has its Go pragma query stripped", () => {
@@ -272,19 +271,13 @@ describe("uuid blob check", () => {
 });
 
 describe("http", () => {
-  test("listens on port 7745 and serves the Expo web shell, not the Nuxt app", async () => {
+  test("listens on port 7745 and serves the static website", async () => {
     const dir = tempDir();
     const publicDir = join(dir, "web");
     mkdirSync(publicDir, { recursive: true });
-    const shell = readFileSync(join(repoRoot, "mobile/public/index.html"), "utf8")
-      .replaceAll("%LANG_ISO_CODE%", "en")
-      .replaceAll("%WEB_TITLE%", "HomeBox");
+    const shell = "<!doctype html><html><head><title>HomeBox</title></head><body>HomeBox</body></html>";
     writeFileSync(join(publicDir, "index.html"), shell);
-    writeFileSync(join(publicDir, "app.js"), "console.log('expo-web');");
-    expect(shell).toContain('name="homebox-client" content="expo-web"');
-    expect(shell).toContain('id="expo-reset"');
-    expect(shell).not.toContain("__NUXT__");
-    expect(shell.toLowerCase()).not.toContain("nuxt");
+    writeFileSync(join(publicDir, "app.js"), "console.log('homebox');");
 
     const running = await startServer(
       envFor(dbPath(dir), {
@@ -305,17 +298,15 @@ describe("http", () => {
     const home = await fetch("http://127.0.0.1:7745/");
     expect(home.status).toBe(200);
     const html = await home.text();
-    expect(html).toContain('name="homebox-client" content="expo-web"');
-    expect(html).toContain('id="root"');
+    expect(html).toContain("HomeBox");
     expect(html).toContain("window.__LARINE_ACTIVE_WORK_ITEM_ID__=");
-    expect(html).not.toContain("__NUXT__");
-    expect(html.toLowerCase()).not.toContain("nuxt");
+    expect(html).not.toContain('content="expo-web"');
     expect(home.headers.get("cache-control")).toBe("no-store");
 
     const route = await fetch("http://127.0.0.1:7745/login");
     const routeHtml = await route.text();
-    expect(routeHtml).toContain('content="expo-web"');
-    expect(routeHtml).not.toContain("__NUXT__");
+    expect(routeHtml).toContain("HomeBox");
+    expect(routeHtml).not.toContain('content="expo-web"');
 
     const asset = await fetch("http://127.0.0.1:7745/app.js");
     expect(await asset.text()).toContain("console.log");
@@ -333,12 +324,12 @@ describe("production image", () => {
       expect(text).toContain("oven/bun");
       expect(text).toContain("7745");
       expect(text).toContain('VOLUME [ "/data" ]');
-      expect(text).toContain("HBOX_STATIC_DIR=/app/web");
-      expect(text).toContain("pnpm run export:web");
-      expect(text).toContain("EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same");
-      expect(text).toContain("/app/dist");
-      expect(text).not.toContain("frontend");
-      expect(text).not.toContain(".output");
+      expect(text).toContain("HBOX_STATIC_DIR=/app/frontend/.output/public");
+      expect(text).toContain("COPY --from=frontend-builder");
+      expect(text).toContain("frontend/.output/public");
+      expect(text).toContain("pnpm build");
+      expect(text).not.toContain("export:web");
+      expect(text).not.toContain("EXPO_PUBLIC_HOMEBOX_API_ORIGIN");
       expect(text.toLowerCase()).not.toContain("golang");
       expect(text).not.toContain("CGO_ENABLED");
       expect(text).not.toContain("/go/bin/api");

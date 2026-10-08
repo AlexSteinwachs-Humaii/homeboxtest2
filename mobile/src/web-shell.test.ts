@@ -19,7 +19,8 @@ test("the Expo web shell is not the Nuxt app and does not open the inventory dat
   const pkg = JSON.parse(await readFile(path.join(mobileRoot, "package.json"), "utf8")) as {
     scripts?: Record<string, string>;
   };
-  assert.match(pkg.scripts?.["export:web"] ?? "", /expo export --platform web/);
+  assert.match(pkg.scripts?.["export:web"] ?? "", /publish-vue-website/);
+  assert.match(pkg.scripts?.["export:expo"] ?? "", /expo export --platform web/);
 
   const appFiles = await walk(path.join(mobileRoot, "app"));
   assert.equal(
@@ -70,20 +71,20 @@ test("the browser chrome follows the original HomeBox website, not the phone lis
   assert.doesNotMatch(list, /Pulled from the server[\s\S]*Platform\.OS === "web"/);
 });
 
-test("production images serve the Expo web export from Bun and omit the Nuxt output", async () => {
+test("production images serve the Vue generate output from Bun and do not compile Go", async () => {
   for (const name of ["Dockerfile", "Dockerfile.rootless", "Dockerfile.hardened"]) {
     const text = await readFile(path.join(repoRoot, name), "utf8");
-    assert.match(text, /pnpm run export:web/);
-    assert.match(text, /HBOX_STATIC_DIR=\/app\/web/);
+    assert.match(text, /HBOX_STATIC_DIR=\/app\/frontend\/.output\/public/);
+    assert.match(text, /frontend\/.output\/public/);
+    assert.match(text, /pnpm build/);
+    assert.equal(text.includes("export:web"), false, `${name} must not export the Expo web client`);
     assert.match(text, /EXPOSE 7745/);
     assert.match(text, /VOLUME \[ "\/data" \]/);
-    assert.equal(text.includes("frontend"), false, `${name} must not copy the Nuxt app`);
-    assert.equal(text.includes(".output"), false, `${name} must not copy frontend/.output`);
     assert.equal(text.toLowerCase().includes("golang"), false);
     assert.equal(text.includes("go build"), false);
   }
   const ignore = await readFile(path.join(repoRoot, ".dockerignore"), "utf8");
-  assert.match(ignore, /^frontend$/m);
+  assert.equal(/^frontend$/m.test(ignore), false, "the Nuxt app must be available to the image build");
 });
 
 async function walk(dir: string): Promise<string[]> {
