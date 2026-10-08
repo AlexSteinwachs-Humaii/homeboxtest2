@@ -102,6 +102,8 @@ pnpm test
 
 The phone tests mock `/api/v1`, including login and inventory. A Bun test in `server/src/contract/mobile-inventory.test.ts` runs the same client against the server and checks the new entity row. They also assert this package does not embed an inventory database.
 
+The same account on both clients is `server/src/contract/cross-client.test.ts`. It signs in twice, writes an item and a completed maintenance row from the web session, and refreshes the phone session with `loadInventory` and `loadMaintenance`. A phone write is checked the other way. The other collection, and a second account, stay absent. Neither session is given the database path; every call is `/api/v1`.
+
 The browser walk is `server/src/web-inventory.browser.test.ts`. Export the web client, then run it against the Bun server (it checks SQLite for the new item, the photo, and the completed maintenance row):
 
 ```bash
