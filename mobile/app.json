@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "HomeBox",
+    "slug": "homebox-mobile",
+    "scheme": "homebox",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "software.homebox.mobile",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "software.homebox.mobile",
+      "usesCleartextTraffic": true
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

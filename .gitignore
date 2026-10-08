@@ -65,6 +65,11 @@ backend/api
 docs/.vitepress/cache/
 .data/
 
+# Expo client
+.expo/
+mobile/ios/
+mobile/android/
+
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
