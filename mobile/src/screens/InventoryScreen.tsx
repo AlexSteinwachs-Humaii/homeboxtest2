@@ -1,8 +1,9 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntitySummary, GroupSummary, TreeNode } from "../api/client";
 import { colors } from "../theme";
+import { Items, Locations, Search } from "./inventory-ui";
 
 type Tab = "items" | "locations";
 
@@ -87,22 +88,7 @@ export function InventoryScreen(props: Props) {
         <TabButton label="Locations" selected={props.tab === "locations"} onPress={() => props.onSelectTab("locations")} />
       </View>
 
-      <View style={styles.searchRow}>
-        <TextInput
-          value={props.query}
-          onChangeText={props.onQueryChange}
-          onSubmitEditing={props.onSubmitSearch}
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Search items"
-          placeholderTextColor={colors.muted}
-          returnKeyType="search"
-          style={styles.searchInput}
-        />
-        <Pressable accessibilityRole="button" onPress={props.onScan} style={styles.scanButton}>
-          <Text style={styles.scanButtonText}>Scan</Text>
-        </Pressable>
-      </View>
+      <Search query={props.query} onQueryChange={props.onQueryChange} onSubmitSearch={props.onSubmitSearch} onScan={props.onScan} />
 
       {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
 
@@ -119,51 +105,18 @@ export function InventoryScreen(props: Props) {
 
         {props.loading && !props.refreshing ? <Text style={styles.empty}>Loading from the server…</Text> : null}
 
-        {!props.loading && showingItems && props.items.length === 0 ? (
-          <Text style={styles.empty}>
-            {props.searchActive
-              ? props.searching
-                ? "Searching the server…"
-                : props.error
-                  ? "No items to show until the server answers."
-                  : "No items match this search."
-              : props.error
-                ? "No items to show until the server answers."
-                : "No items in this collection yet."}
-          </Text>
-        ) : null}
-
-        {!props.loading && !showingItems && locationRows.length === 0 ? (
-          <Text style={styles.empty}>{props.error ? "No locations to show until the server answers." : "No locations yet. Add one to file an item in it."}</Text>
-        ) : null}
-
-        {showingItems
-          ? props.items.map((item) => (
-              <Pressable key={item.id} accessibilityRole="button" onPress={() => props.onOpenItem(item.id)} style={styles.row}>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{item.name}</Text>
-                  <Text style={styles.rowMeta}>
-                    Qty {formatQuantity(item.quantity)}
-                    {item.parentName ? ` · ${item.parentName}` : ""}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            ))
-          : locationRows.map((location) => (
-              <Pressable
-                key={location.id}
-                accessibilityRole="button"
-                onPress={() => props.onOpenLocation(location.id)}
-                style={[styles.row, { paddingLeft: 16 + location.depth * 16 }]}
-              >
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{location.name}</Text>
-                  <Text style={styles.rowMeta}>{location.depth > 0 ? "Inside another location" : "Top level"}</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
-            ))}
+        {showingItems ? (
+          <Items
+            items={props.items}
+            loading={props.loading}
+            error={props.error}
+            searchActive={props.searchActive}
+            searching={props.searching}
+            onOpenItem={props.onOpenItem}
+          />
+        ) : (
+          <Locations rows={locationRows} loading={props.loading} error={props.error} onOpenLocation={props.onOpenLocation} />
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -197,10 +150,6 @@ function flattenLocations(nodes: TreeNode[], depth = 0): Array<{ id: string; nam
   return rows;
 }
 
-function formatQuantity(value: number): string {
-  return Number.isInteger(value) ? String(value) : String(value);
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 12, gap: 12 },
@@ -217,20 +166,6 @@ const styles = StyleSheet.create({
   chipText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   chipTextSelected: { color: colors.onPrimary },
   tabs: { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 4 },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12 },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.input,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: colors.text,
-  },
-  scanButton: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  scanButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "700" },
   tab: { flex: 1, alignItems: "center", borderRadius: 9, paddingVertical: 8 },
   tabSelected: { backgroundColor: colors.primary },
   tabText: { fontSize: 15, fontWeight: "600", color: colors.muted },
@@ -240,21 +175,6 @@ const styles = StyleSheet.create({
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
   toolbarNote: { flex: 1, fontSize: 13, lineHeight: 18, color: colors.muted },
   empty: { marginTop: 24, fontSize: 16, lineHeight: 22, color: colors.muted },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginTop: 8,
-  },
-  rowCopy: { flex: 1 },
-  rowTitle: { fontSize: 17, fontWeight: "600", color: colors.text },
-  rowMeta: { marginTop: 3, fontSize: 14, color: colors.muted },
-  chevron: { marginLeft: 8, fontSize: 22, color: colors.muted },
   footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, backgroundColor: colors.background },
   primary: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   primaryPressed: { backgroundColor: colors.primaryPressed },

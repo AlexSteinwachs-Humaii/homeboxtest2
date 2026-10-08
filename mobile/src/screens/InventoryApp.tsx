@@ -9,9 +9,7 @@ import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
 import type { Account, StoredSession } from "../session/session";
 import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
-import { ItemDetailScreen, type ServerPhoto } from "./ItemDetailScreen";
-import { ItemEditorScreen, type EditorValues } from "./ItemEditorScreen";
-import { MaintenanceScreen } from "./MaintenanceScreen";
+import { ItemDetail, ItemEdit, Maintenance, type EditorValues, type ServerPhoto } from "./inventory-ui";
 import { ScanScreen } from "./ScanScreen";
 
 type Props = {
@@ -274,7 +272,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     const activeGroup = snapshot?.groupId ?? groupId;
     const groupName = snapshot?.groups.find((group) => group.id === activeGroup)?.name ?? "Collection";
     return (
-      <MaintenanceScreen
+      <Maintenance
         groupName={groupName}
         entries={maintenance}
         filter={maintenanceFilter}
@@ -313,7 +311,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   if (view.name === "edit-item" || view.name === "edit-location") {
     const editing = view.name === "edit-item" && view.id && detail?.id === view.id ? detail : null;
     return (
-      <ItemEditorScreen
+      <ItemEdit
         mode={view.name === "edit-location" ? "create-location" : editing ? "edit-item" : "create-item"}
         initial={{
           name: editing?.name ?? "",
@@ -333,7 +331,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   if (view.name === "item" || view.name === "location") {
     const filed = snapshot?.items.filter((item) => item.parentId === view.id) ?? [];
     return (
-      <ItemDetailScreen
+      <ItemDetail
         kind={view.name}
         detail={detail?.id === view.id ? detail : null}
         filedItems={filed}

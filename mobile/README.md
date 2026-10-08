@@ -2,7 +2,7 @@
 
 Expo (React Native) client for a self-hosted HomeBox server. The phone signs in to the household's existing account. Inventory stays on the server.
 
-This is not an Expo Router API and it does not add Go code. Screens live in `src/screens`. The API client in `src/api` speaks `/api/v1` and can be imported by a later web build.
+This is not an Expo Router API and it does not add Go code. Inventory screens live in `src/screens` and are imported by the phone (`app/index.tsx`) and the browser (`app/index.web.tsx`) from `src/screens/inventory-ui`. That module is React Native primitives, rendered with react-native-web in the browser. It does not wrap the Vue app in `frontend/`. The API client in `src/api` speaks `/api/v1`.
 
 ## Sign in
 
@@ -75,6 +75,17 @@ pnpm dlx eas-cli update --channel sideload --message "JavaScript-only fix"
 ```
 
 Link an Expo account/project with `eas init`. If the CLI cannot write the dynamic config, set `EAS_PROJECT_ID` (including on the EAS build) or add `extra.eas.projectId` to `app.json`. The next native build then embeds the updates URL. Until that id exists, updates stay off so the phone does not call Expo on launch. A store listing is `pnpm dlx eas-cli build --profile production` and is not required to install the sideload binary.
+
+## Web
+
+The browser client is this same Expo app, not a second copy of the screens and not the Vue app in `frontend/`.
+
+```bash
+cd mobile
+pnpm exec expo start --web
+```
+
+`app/index.web.tsx` and `app/index.tsx` both import item list, item detail, item edit, locations, search, photo attach, and maintenance from `src/screens/inventory-ui`. The web build renders those with react-native-web. The camera scanner and secure storage are the only platform-specific files (`ScanScreen.web.tsx`, `session/secure.web.ts`).
 
 ## Tests
 

@@ -67,6 +67,11 @@
       "./plugins/lan-http.cjs",
       "./plugins/sideload-signing.cjs"
     ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon.png"
+    },
     "experiments": {
       "typedRoutes": false
     }
