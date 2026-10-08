@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { migrateLegacyFlatPaths } from "./attachments/blob.ts";
 import { setApiKeyPepper, assertApiKeyPepper } from "./auth/token.ts";
+import { eventWebSocket, handleEventsUpgrade, startEventChannel, stopEventChannel } from "./events/channel.ts";
 import { initOidc, type OidcRuntime } from "./auth/oidc.ts";
 import { createApp } from "./app.ts";
 import { loadConfig, type ServerConfig } from "./config.ts";
@@ -73,16 +74,24 @@ export async function startServer(
     console.warn(`[homebox] legacy attachment migration skipped: ${err instanceof Error ? err.message : err}`);
   }
   const app = createApp(prepared.config, env, { db: prepared.db, oidc });
+  startEventChannel();
   const server = Bun.serve({
     hostname: prepared.config.host,
     port: prepared.config.port,
-    fetch: app.fetch,
+    fetch(request, bunServer) {
+      const upgraded = handleEventsUpgrade(request, bunServer, prepared.db);
+      if (upgraded === "upgraded") return undefined;
+      if (upgraded instanceof Response) return upgraded;
+      return app.fetch(request);
+    },
+    websocket: eventWebSocket,
   });
   console.log(`[homebox] listening on ${prepared.config.host}:${server.port}`);
   return {
     ...prepared,
     server,
     stop: () => {
+      stopEventChannel();
       server.stop(true);
       prepared.db.close();
     },

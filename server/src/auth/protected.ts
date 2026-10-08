@@ -12,6 +12,7 @@ import {
   type AttachmentServiceOptions,
 } from "../attachments/service.ts";
 import { formatSqliteDateTime } from "../db/storage.ts";
+import { eventsHttpResponse } from "../events/channel.ts";
 import { searchEntities } from "../search/entities.ts";
 import { authorize, jsonError, type Actor } from "./guard.ts";
 import { isSupportedCurrency } from "./currencies.ts";
@@ -20,10 +21,13 @@ import {
   createEntityForGroup,
   createInvitation,
   createMaintenanceForGroup,
+  createTagForGroup,
   createTemplateForGroup,
+  deleteEntityForGroup,
   deleteExportForGroup,
   deleteGroup,
   deleteInvitation,
+  deleteTagForGroup,
   getAttachmentForGroup,
   getEntityForGroup,
   getExportForGroup,
@@ -36,6 +40,7 @@ import {
   patchEntityTagsForGroup,
   removeMember,
   renameEntityForGroup,
+  renameTagForGroup,
   TenancyError,
   updateGroup,
 } from "./tenancy.ts";
@@ -90,6 +95,8 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
     thumbnail: { enabled: true, width: 500, height: 500 },
     maxUploadBytes: 10 * 1024 * 1024,
   };
+  app.get("/api/v1/ws/events", (c: Context) => eventsHttpResponse(c.req.raw, db));
+
   app.get("/api/v1/entities", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
@@ -140,6 +147,60 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
       const row = getEntityForGroup(db, actor.groupId, id);
       if (!row) return jsonError(404, "Not Found");
       return Response.json(row);
+    } catch (err) {
+      return fromTenancy(err);
+    }
+  });
+
+  app.delete("/api/v1/entities/:id", (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      if (!deleteEntityForGroup(db, actor.groupId, c.req.param("id"))) return jsonError(404, "Not Found");
+      return new Response(null, { status: 204 });
+    } catch (err) {
+      return fromTenancy(err);
+    }
+  });
+
+  app.post("/api/v1/tags", async (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      const body = await readJson(c);
+      const id = createTagForGroup(db, actor.groupId, {
+        name: String(body.name ?? ""),
+        description: typeof body.description === "string" ? body.description : null,
+        color: typeof body.color === "string" ? body.color : null,
+        icon: typeof body.icon === "string" ? body.icon : null,
+        parentId: typeof body.parentId === "string" ? body.parentId : null,
+      });
+      return Response.json({ id }, { status: 201 });
+    } catch (err) {
+      return fromTenancy(err);
+    }
+  });
+
+  app.put("/api/v1/tags/:id", async (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      const body = await readJson(c);
+      if (!renameTagForGroup(db, actor.groupId, c.req.param("id"), String(body.name ?? ""))) {
+        return jsonError(404, "Not Found");
+      }
+      return Response.json({ id: c.req.param("id"), name: String(body.name ?? "") });
+    } catch (err) {
+      return fromTenancy(err);
+    }
+  });
+
+  app.delete("/api/v1/tags/:id", (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      if (!deleteTagForGroup(db, actor.groupId, c.req.param("id"))) return jsonError(404, "Not Found");
+      return new Response(null, { status: 204 });
     } catch (err) {
       return fromTenancy(err);
     }

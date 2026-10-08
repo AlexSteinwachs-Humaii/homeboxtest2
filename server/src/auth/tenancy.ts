@@ -8,6 +8,7 @@ import {
   insertEntity,
   insertEntityField,
   insertMaintenanceEntry,
+  insertTag,
   insertTagLink,
   listEntities,
   listEntityFields,
@@ -31,6 +32,7 @@ import {
   sqliteNow,
   uuidToBytes,
 } from "../db/storage.ts";
+import { publishEntityMutation, publishTagMutation } from "../events/bus.ts";
 import { generateToken, hashToken } from "./token.ts";
 
 // Cross-tenant misses are not-found, matching repo_authz.go. A 404 does not
@@ -374,11 +376,53 @@ export function deleteExportForGroup(db: Database, groupId: string, id: string):
 }
 
 export function renameEntityForGroup(db: Database, groupId: string, id: string, name: string): boolean {
-  return updateEntityName(db, groupId, id, name);
+  const gid = requireGroupId(groupId);
+  const updated = updateEntityName(db, gid, id, name);
+  if (updated) publishEntityMutation(gid);
+  return updated;
+}
+
+export function deleteEntityForGroup(db: Database, groupId: string, id: string): boolean {
+  const gid = requireGroupId(groupId);
+  if (!getEntityForGroup(db, gid, id)) return false;
+  const [idBytes, idText] = idPair(id);
+  db.run(`DELETE FROM entities WHERE id = ? OR id = ?`, [idBytes, idText]);
+  publishEntityMutation(gid);
+  return true;
 }
 
 export function renameTagForGroup(db: Database, groupId: string, id: string, name: string): boolean {
-  return updateTagName(db, groupId, id, name);
+  const gid = requireGroupId(groupId);
+  const updated = updateTagName(db, gid, id, name);
+  if (updated) publishTagMutation(gid);
+  return updated;
+}
+
+export function createTagForGroup(
+  db: Database,
+  groupId: string,
+  input: { name: string; description?: string | null; color?: string | null; icon?: string | null; parentId?: string | null },
+): string {
+  const gid = requireGroupId(groupId);
+  assertTagsInGroup(db, gid, [input.parentId]);
+  const id = insertTag(db, {
+    name: input.name,
+    groupId: gid,
+    parentId: input.parentId,
+    color: input.color,
+    description: input.description,
+  });
+  publishTagMutation(gid);
+  return id;
+}
+
+export function deleteTagForGroup(db: Database, groupId: string, id: string): boolean {
+  const gid = requireGroupId(groupId);
+  if (!getTagById(db, gid, id)) return false;
+  const [idBytes, idText] = idPair(id);
+  db.run(`DELETE FROM tags WHERE id = ? OR id = ?`, [idBytes, idText]);
+  publishTagMutation(gid);
+  return true;
 }
 
 export function createEntityForGroup(
@@ -399,6 +443,7 @@ export function createEntityForGroup(
   for (const tagId of input.tagIds ?? []) {
     if (!isNil(tagId)) insertTagLink(db, tagId, id);
   }
+  publishEntityMutation(gid);
   return id;
 }
 
@@ -411,6 +456,7 @@ export function patchEntityTagsForGroup(db: Database, groupId: string, entityId:
   for (const tagId of tagIds) {
     if (!isNil(tagId)) insertTagLink(db, tagId, entityId);
   }
+  publishEntityMutation(gid);
 }
 
 export function createMaintenanceForGroup(
@@ -462,6 +508,7 @@ export function createTemplateForGroup(
      ) VALUES (?, ?, ?, ?, 1, 0, 0, 0, 0, 0, ?, ?)`,
     [id, now, now, input.name, location, uuidToBytes(gid)],
   );
+  publishEntityMutation(gid);
   return bytesToUuid(id);
 }
 
