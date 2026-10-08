@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
+import { DEFAULT_STORAGE_CONN_STRING, DEFAULT_STORAGE_PREFIX_PATH, normalizePath, resolveFileBucket } from "./attachments/paths.ts";
 import { StartupError } from "./errors.ts";
 
 export const DEFAULT_SQLITE_PATH = "/data/homebox.db";
@@ -50,6 +51,12 @@ export type ServerConfig = {
   passwordProtectionDisabled: boolean;
   oidc: OidcConfig;
   mailer: MailerConfig;
+  storageConnString: string;
+  storagePrefixPath: string;
+  thumbnailEnabled: boolean;
+  thumbnailWidth: number;
+  thumbnailHeight: number;
+  maxUploadBytes: number;
 };
 
 type Env = Record<string, string | undefined>;
@@ -112,6 +119,10 @@ export function loadConfig(env: Env, args: string[] = [], migrationsDir?: string
     throw new StartupError(`invalid HBOX_WEB_PORT: ${portRaw}`);
   }
 
+  const storageConnString = env.HBOX_STORAGE_CONN_STRING ?? file.storageConnString ?? DEFAULT_STORAGE_CONN_STRING;
+  const storagePrefixPath = env.HBOX_STORAGE_PREFIX_PATH ?? file.storagePrefixPath ?? DEFAULT_STORAGE_PREFIX_PATH;
+  assertFileStorage(storageConnString, storagePrefixPath);
+
   return {
     driver: driver.trim().toLowerCase() === "sqlite" ? "sqlite3" : driver.trim().toLowerCase() || "sqlite3",
     sqlitePath,
@@ -151,7 +162,21 @@ export function loadConfig(env: Env, args: string[] = [], migrationsDir?: string
       password: env.HBOX_MAILER_PASSWORD ?? file.mailerPassword ?? "",
       from: env.HBOX_MAILER_FROM ?? file.mailerFrom ?? "",
     },
+    storageConnString,
+    storagePrefixPath,
+    thumbnailEnabled: parseBool(env.HBOX_THUMBNAIL_ENABLED, file.thumbnailEnabled ?? true),
+    thumbnailWidth: parsePositiveInt(env.HBOX_THUMBNAIL_WIDTH ?? file.thumbnailWidth, 500),
+    thumbnailHeight: parsePositiveInt(env.HBOX_THUMBNAIL_HEIGHT ?? file.thumbnailHeight, 500),
+    maxUploadBytes: parsePositiveInt(env.HBOX_WEB_MAX_FILE_UPLOAD ?? file.maxUploadMb, 10) * 1024 * 1024,
   };
+}
+
+export function assertFileStorage(connString: string, prefixPath: string): void {
+  resolveFileBucket(connString);
+  const prefix = normalizePath(prefixPath);
+  if (prefix.split("/").some((part) => part === "..")) {
+    throw new StartupError(`invalid HBOX_STORAGE_PREFIX_PATH: ${prefixPath}`);
+  }
 }
 
 export function parseDuration(value: string | undefined, fallbackMs: number): number {
@@ -196,6 +221,12 @@ type FileConfig = {
   mailerUsername?: string;
   mailerPassword?: string;
   mailerFrom?: string;
+  storageConnString?: string;
+  storagePrefixPath?: string;
+  thumbnailEnabled?: boolean;
+  thumbnailWidth?: string;
+  thumbnailHeight?: string;
+  maxUploadMb?: string;
 };
 
 // The Go server takes an optional YAML file as its first argument (Docker CMD is
@@ -225,6 +256,8 @@ function readConfigFile(args: string[]): FileConfig {
   const auth = asRecord(root.auth);
   const oidc = asRecord(root.oidc);
   const mailer = asRecord(root.mailer);
+  const storage = asRecord(root.storage);
+  const thumbnail = asRecord(root.thumbnail);
   return {
     driver: asString(database?.driver),
     sqlitePath: asString(database?.sqlite_path),
@@ -247,7 +280,20 @@ function readConfigFile(args: string[]): FileConfig {
     mailerUsername: asString(mailer?.username),
     mailerPassword: asString(mailer?.password),
     mailerFrom: asString(mailer?.from),
+    storageConnString: asString(storage?.conn_string),
+    storagePrefixPath: asString(storage?.prefix_path),
+    thumbnailEnabled: asBool(thumbnail?.enabled),
+    thumbnailWidth: asString(thumbnail?.width),
+    thumbnailHeight: asString(thumbnail?.height),
+    maxUploadMb: asString(web?.max_file_upload),
   };
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return parsed;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

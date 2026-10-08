@@ -1,6 +1,16 @@
 import type { Context } from "hono";
 import type { Database } from "bun:sqlite";
 
+import {
+  AttachmentError,
+  createExternalAttachment,
+  createFileAttachment,
+  deleteStoredAttachment,
+  entityAttachmentBody,
+  serveAttachment,
+  updateAttachment,
+  type AttachmentServiceOptions,
+} from "../attachments/service.ts";
 import { formatSqliteDateTime } from "../db/storage.ts";
 import { authorize, jsonError, type Actor } from "./guard.ts";
 import { isSupportedCurrency } from "./currencies.ts";
@@ -10,7 +20,6 @@ import {
   createInvitation,
   createMaintenanceForGroup,
   createTemplateForGroup,
-  deleteAttachmentForGroup,
   deleteExportForGroup,
   deleteGroup,
   deleteInvitation,
@@ -52,7 +61,34 @@ async function readJson(c: Context): Promise<Record<string, unknown>> {
   return (await c.req.json()) as Record<string, unknown>;
 }
 
-export function mountProtectedRoutes(app: App, db: Database): void {
+export type AttachmentRouteOptions = AttachmentServiceOptions;
+
+function attachmentError(err: unknown): Response {
+  if (err instanceof AttachmentError) {
+    if (err.fields && err.status === 422) return Response.json(err.fields, { status: 422 });
+    if (err.fields) {
+      return Response.json(
+        { error: err.message, fields: Object.fromEntries(err.fields.map((field) => [field.field, field.error])) },
+        { status: err.status },
+      );
+    }
+    return jsonError(err.status, err.message);
+  }
+  console.warn(`[homebox] attachment request failed: ${err instanceof Error ? err.message : err}`);
+  return jsonError(500, "Unknown Error");
+}
+
+function parseBool(value: string): boolean {
+  return value === "1" || value.toLowerCase() === "t" || value.toLowerCase() === "true";
+}
+
+export function mountProtectedRoutes(app: App, db: Database, storage?: AttachmentRouteOptions): void {
+  const files = storage ?? {
+    connString: "file:///./",
+    prefixPath: ".data",
+    thumbnail: { enabled: true, width: 500, height: 500 },
+    maxUploadBytes: 10 * 1024 * 1024,
+  };
   app.get("/api/v1/entities", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
@@ -115,22 +151,87 @@ export function mountProtectedRoutes(app: App, db: Database): void {
     }
   });
 
+  app.post("/api/v1/entities/:id/attachments", async (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    const length = Number(c.req.header("content-length") ?? "0");
+    if (length > files.maxUploadBytes) {
+      return jsonError(413, `uploaded file exceeds the size limit of ${files.maxUploadBytes} bytes`);
+    }
+    try {
+      const form = await c.req.formData();
+      const fields: Array<{ field: string; error: string }> = [];
+      const file = form.get("file");
+      const name = form.get("name");
+      if (!(file instanceof File)) fields.push({ field: "file", error: "file is required" });
+      if (typeof name !== "string" || name === "") fields.push({ field: "name", error: "name is required" });
+      if (fields.length) return Response.json(fields, { status: 422 });
+      const content = new Uint8Array(await (file as File).arrayBuffer());
+      const type = form.get("type");
+      const primary = form.get("primary");
+      const stored = await createFileAttachment(
+        db,
+        actor.groupId,
+        c.req.param("id"),
+        {
+          title: String(name),
+          type: typeof type === "string" ? type : "",
+          primary: typeof primary === "string" ? parseBool(primary) : false,
+          content,
+        },
+        files,
+      );
+      return Response.json(entityAttachmentBody(c.req.param("id"), stored), { status: 201 });
+    } catch (err) {
+      return attachmentError(err);
+    }
+  });
+
+  app.post("/api/v1/entities/:id/attachments/external", async (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      const body = await readJson(c);
+      const stored = createExternalAttachment(db, actor.groupId, c.req.param("id"), {
+        sourceType: String(body.source_type ?? ""),
+        externalId: String(body.external_id ?? ""),
+        title: String(body.title ?? ""),
+        attachmentType: String(body.attachment_type ?? ""),
+      });
+      return Response.json(entityAttachmentBody(c.req.param("id"), stored), { status: 201 });
+    } catch (err) {
+      return attachmentError(err);
+    }
+  });
+
   app.get("/api/v1/entities/:id/attachments/:attachment_id", (c: Context) => {
     const actor = actorOrResponse(c, db, false, ["user", "attachments"]);
     if (actor instanceof Response) return actor;
-    const entity = getEntityForGroup(db, actor.groupId, c.req.param("id"));
-    const row = getAttachmentForGroup(db, actor.groupId, c.req.param("attachment_id"));
-    if (!entity || !row || row.entityId !== entity.id) return jsonError(404, "Not Found");
-    return Response.json(row);
+    return serveAttachment(db, actor.groupId, c.req.param("id"), c.req.param("attachment_id"), files);
+  });
+
+  app.put("/api/v1/entities/:id/attachments/:attachment_id", async (c: Context) => {
+    const actor = actorOrResponse(c, db);
+    if (actor instanceof Response) return actor;
+    try {
+      const body = await readJson(c);
+      const stored = updateAttachment(db, actor.groupId, c.req.param("id"), c.req.param("attachment_id"), {
+        type: String(body.type ?? ""),
+        title: String(body.title ?? ""),
+        primary: body.primary === true || body.primary === "true",
+      });
+      return Response.json(entityAttachmentBody(c.req.param("id"), stored));
+    } catch (err) {
+      return attachmentError(err);
+    }
   });
 
   app.delete("/api/v1/entities/:id/attachments/:attachment_id", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
-    const entity = getEntityForGroup(db, actor.groupId, c.req.param("id"));
-    const row = getAttachmentForGroup(db, actor.groupId, c.req.param("attachment_id"));
-    if (!entity || !row || row.entityId !== entity.id) return jsonError(404, "Not Found");
-    deleteAttachmentForGroup(db, actor.groupId, row.id);
+    if (!deleteStoredAttachment(db, actor.groupId, c.req.param("id"), c.req.param("attachment_id"), files)) {
+      return jsonError(404, "Not Found");
+    }
     return new Response(null, { status: 204 });
   });
 

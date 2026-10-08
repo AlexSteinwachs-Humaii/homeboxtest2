@@ -2,6 +2,7 @@ import type { Server } from "bun";
 import type { Database } from "bun:sqlite";
 import { resolve } from "node:path";
 
+import { migrateLegacyFlatPaths } from "./attachments/blob.ts";
 import { setApiKeyPepper, assertApiKeyPepper } from "./auth/token.ts";
 import { initOidc, type OidcRuntime } from "./auth/oidc.ts";
 import { createApp } from "./app.ts";
@@ -63,6 +64,14 @@ export async function startServer(
     oidc = await initOidc(preview);
   }
   const prepared = prepareDatabase(env, args);
+  try {
+    const legacy = migrateLegacyFlatPaths(prepared.config.storageConnString);
+    if (legacy.moved > 0) {
+      console.log(`[homebox] migrated ${legacy.moved} legacy flat attachment files`);
+    }
+  } catch (err) {
+    console.warn(`[homebox] legacy attachment migration skipped: ${err instanceof Error ? err.message : err}`);
+  }
   const app = createApp(prepared.config, env, { db: prepared.db, oidc });
   const server = Bun.serve({
     hostname: prepared.config.host,

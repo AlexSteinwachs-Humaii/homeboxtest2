@@ -3,7 +3,7 @@ import { Hono } from "hono";
 
 import { loadCurrencies } from "./auth/currencies.ts";
 import { mailerFromConfig } from "./auth/mailer.ts";
-import { mountProtectedRoutes } from "./auth/protected.ts";
+import { mountProtectedRoutes, type AttachmentRouteOptions } from "./auth/protected.ts";
 import { mountAuthRoutes, type AuthDeps } from "./auth/routes.ts";
 import type { OidcRuntime } from "./auth/oidc.ts";
 import type { MailSender } from "./auth/users.ts";
@@ -78,7 +78,7 @@ export function createApp(
       env: options.env ?? env,
     };
     mountAuthRoutes(app, deps);
-    mountProtectedRoutes(app, options.db);
+    mountProtectedRoutes(app, options.db, attachmentOptions(config));
   }
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
@@ -87,6 +87,19 @@ export function createApp(
   app.on("HEAD", "*", (c) => serveAsset(c.req.path, config, env));
 
   return app;
+}
+
+function attachmentOptions(config: ServerConfig): AttachmentRouteOptions {
+  return {
+    connString: config.storageConnString,
+    prefixPath: config.storagePrefixPath,
+    thumbnail: {
+      enabled: config.thumbnailEnabled,
+      width: config.thumbnailWidth,
+      height: config.thumbnailHeight,
+    },
+    maxUploadBytes: config.maxUploadBytes,
+  };
 }
 
 function serveAsset(urlPath: string, config: ServerConfig, env: Record<string, string | undefined>): Response {
