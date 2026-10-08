@@ -32,7 +32,7 @@ If the account belongs to more than one collection, the chips at the top switch 
 
 The search field calls `GET /api/v1/entities?q=` with the text as typed. Accent folding is the server's search. The phone does not rewrite the query, and it does not filter the list it already loaded.
 
-Scan opens the camera for a barcode or QR label, and keeps a text field for when the camera cannot read the code. A HomeBox label (`/item/{id}`, `/location/{id}`, or `/a/{assetId}`) is looked up on the signed-in server with `X-Tenant`. The host printed on the label does not have to match the address used to sign in. A code from another collection is a no-match; that item is not opened.
+Scan opens the camera for a barcode or QR label, and keeps a text field for when the camera cannot read the code. Results stay visible while the label remains in frame; tap Scan again to rearm the camera, or use Look up for a manual code. A HomeBox label (`/item/{id}`, `/location/{id}`, or `/a/{assetId}`) is looked up on the signed-in server with `X-Tenant`. The host printed on the label does not have to match the address used to sign in. A code from another collection is a no-match; that item is not opened.
 
 A product barcode that is not already an item calls `GET /api/v1/products/search-from-barcode` and then shows that nothing in this collection matched. The app does not create an item from the catalog.
 
@@ -62,19 +62,19 @@ pnpm run android:apk
 adb install -r android/app/build/outputs/apk/release/app-release.apk
 ```
 
-`pnpm run android:apk` runs `scripts/android-apk.sh`: Expo prebuild, then `./gradlew assembleRelease`. The APK is signed with a sideload key created under `signing/` (gitignored). It is not a Play Store key.
+`pnpm run android:apk` runs `scripts/android-apk.sh`: Expo prebuild, then `./gradlew assembleRelease`. The script sets `HOMEBOX_LOCAL_SIDELOAD=1` so the APK is signed with a sideload key created under `signing/` (gitignored). It is not a Play Store key. EAS builds leave that flag unset and use EAS-managed credentials instead. The LAN HTTP plugin explicitly enables cleartext traffic in the Android release manifest.
 
 The same sideload profile on EAS, including an iOS device binary, and a later JavaScript-only fix:
 
 ```bash
 cd mobile
-pnpm exec eas init
-pnpm exec eas build --platform android --profile sideload
-pnpm exec eas build --platform ios --profile sideload
-pnpm exec eas update --channel sideload --message "JavaScript-only fix"
+pnpm dlx eas-cli init
+pnpm dlx eas-cli build --platform android --profile sideload
+pnpm dlx eas-cli build --platform ios --profile sideload
+pnpm dlx eas-cli update --channel sideload --message "JavaScript-only fix"
 ```
 
-`eas init` writes the Expo project id. The next native build then embeds the updates URL. Until that id exists, updates stay off so the phone does not call Expo on launch. A store listing is `eas build --profile production` and is not required to install the sideload binary.
+Link an Expo account/project with `eas init`. If the CLI cannot write the dynamic config, set `EAS_PROJECT_ID` (including on the EAS build) or add `extra.eas.projectId` to `app.json`. The next native build then embeds the updates URL. Until that id exists, updates stay off so the phone does not call Expo on launch. A store listing is `pnpm dlx eas-cli build --profile production` and is not required to install the sideload binary.
 
 ## Tests
 

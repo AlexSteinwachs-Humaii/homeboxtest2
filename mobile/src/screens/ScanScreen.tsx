@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors } from "../theme";
 import { noMatchCopy, type ScanMatch, type ScanResolution } from "../scan/lookup";
+import { ScanLock } from "../scan/scan-lock";
 
 const BARCODE_TYPES = ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "code93", "codabar", "itf14", "datamatrix", "pdf417", "aztec"] as const;
 
@@ -20,15 +21,21 @@ export function ScanScreen({ onBack, onLookup, onOpen }: Props) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ScanResolution | null>(null);
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
-  const lock = useRef(false);
+  const lock = useRef(new ScanLock());
 
-  async function lookup(raw: string) {
+  async function lookup(raw: string, camera = false) {
     const trimmed = raw.trim();
-    if (!trimmed || busy) return;
-    lock.current = true;
+    if (!trimmed || !lock.current.begin(camera)) return;
+    setCode(raw);
     setBusy(true);
     setResult(null);
-    const resolved = await onLookup(trimmed);
+    let resolved: ScanResolution;
+    try {
+      resolved = await onLookup(trimmed);
+    } catch {
+      resolved = { status: "error", message: "Could not look up this code. Try again." };
+    }
+    lock.current.finish();
     setBusy(false);
     if (resolved.status === "match" && resolved.matches.length === 1) {
       const match = resolved.matches[0];
@@ -36,7 +43,6 @@ export function ScanScreen({ onBack, onLookup, onOpen }: Props) {
       return;
     }
     setResult(resolved);
-    lock.current = false;
   }
 
   return (
@@ -57,9 +63,8 @@ export function ScanScreen({ onBack, onLookup, onOpen }: Props) {
             mute
             barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
             onBarcodeScanned={({ data }) => {
-              if (lock.current || busy || !data) return;
-              setCode(data);
-              void lookup(data);
+              if (!data) return;
+              void lookup(data, true);
             }}
             onMountError={() => setCameraMessage("The camera did not start. Type the code instead.")}
           />
@@ -80,6 +85,15 @@ export function ScanScreen({ onBack, onLookup, onOpen }: Props) {
       </View>
 
       <View style={styles.entry}>
+        {cameraMessage && permission?.granted ? <Text style={styles.error}>{cameraMessage}</Text> : null}
+        {result ? (
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => {
+            lock.current.reset();
+            setResult(null);
+          }} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Scan again</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.label}>Code</Text>
         <TextInput
           value={code}

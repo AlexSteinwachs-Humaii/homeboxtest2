@@ -13,6 +13,7 @@ if ! command -v java >/dev/null 2>&1; then
   exit 1
 fi
 
+export HOMEBOX_LOCAL_SIDELOAD=1
 pnpm exec expo prebuild --platform android --no-install
 
 mkdir -p signing

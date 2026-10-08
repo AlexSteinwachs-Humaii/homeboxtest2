@@ -7,6 +7,9 @@ const { withAppBuildGradle } = require("expo/config-plugins");
 const MARKER = "homeboxSideload";
 
 function withSideloadSigning(config) {
+  // EAS supplies its own signing credentials. Only the local APK script owns
+  // this ignored key; applying it on EAS would reference a missing keystore.
+  if (process.env.HOMEBOX_LOCAL_SIDELOAD !== "1") return config;
   return withAppBuildGradle(config, (mod) => {
     if (mod.modResults.language !== "groovy") return mod;
     let contents = mod.modResults.contents;

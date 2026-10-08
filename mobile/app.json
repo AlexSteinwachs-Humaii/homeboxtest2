@@ -32,8 +32,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1b5e52"
-      },
-      "usesCleartextTraffic": true
+      }
     },
     "plugins": [
       "expo-router",
@@ -65,6 +64,7 @@
       ],
       "expo-updates",
       "./plugins/forbid-local-inventory.cjs",
+      "./plugins/lan-http.cjs",
       "./plugins/sideload-signing.cjs"
     ],
     "experiments": {
