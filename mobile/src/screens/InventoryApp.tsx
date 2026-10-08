@@ -262,7 +262,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
     setMaintenanceMessage("Scheduled on the server. Open Maintenance to mark it complete.");
   }
 
-  async function refreshMaintenance(activeGroup: string) {
+  const refreshMaintenance = useCallback(async (activeGroup: string) => {
     const ticket = ++maintenanceTicket.current;
     setMaintenanceLoading(true);
     setRefreshing(true);
@@ -278,7 +278,15 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
       return;
     }
     setMaintenance(result.data);
-  }
+  }, [client]);
+
+  // Resolve the selected collection before loading a directly opened route.
+  // Navigation and deep links use the same load path.
+  useEffect(() => {
+    if (view.name === "maintenance" && snapshot?.groupId) {
+      void refreshMaintenance(snapshot.groupId);
+    }
+  }, [view.name, snapshot?.groupId, refreshMaintenance]);
 
   async function onCompleteMaintenance(entry: MaintenanceEntry) {
     const activeGroup = snapshot?.groupId ?? groupId;
@@ -320,7 +328,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
     void reload(snapshot.groupId, false);
   }
 
-  if (view.name === "tools") {
+  if (view.name === "tools" && snapshot) {
     const activeGroup = snapshot?.groupId ?? groupId;
     return (
       <ToolsScreen
@@ -355,7 +363,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
         groupName={groupName}
         entries={maintenance}
         filter={maintenanceFilter}
-        loading={maintenanceLoading}
+        loading={maintenanceLoading || !snapshot}
         refreshing={refreshing}
         completingId={completingId}
         error={maintenanceError}
@@ -444,6 +452,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
 
   const groupName = snapshot?.groups.find((group) => group.id === (snapshot?.groupId ?? groupId))?.name ?? "Collection";
   const searchActive = query.trim() !== "" && searchResults !== null;
+  const tab = view.name === "list" ? view.tab : "items";
 
   return (
     <InventoryScreen
@@ -451,7 +460,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
       groupName={groupName}
       groups={snapshot?.groups ?? []}
       groupId={snapshot?.groupId ?? groupId}
-      tab={view.tab}
+      tab={tab}
       items={searchActive ? (searchResults ?? []) : (snapshot?.items ?? [])}
       locations={snapshot?.locations ?? []}
       tree={snapshot?.tree ?? []}
@@ -496,7 +505,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
         setSearching(false);
         setSearchResults(null);
         setSearchError(null);
-        setView({ name: "list", tab: view.tab });
+        setView({ name: "list", tab });
         setMaintenance([]);
         setMaintenanceError(null);
         maintenanceTicket.current += 1;
@@ -505,7 +514,6 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
       onMaintenance={() => {
         setMaintenanceFilter("due");
         setView({ name: "maintenance" });
-        void refreshMaintenance(snapshot?.groupId ?? groupId);
       }}
       onTools={() => {
         client.setGroup(snapshot?.groupId ?? groupId);

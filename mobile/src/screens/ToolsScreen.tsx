@@ -498,6 +498,7 @@ function ProfilePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     void client.listApiKeys().then((result) => {
@@ -591,7 +592,15 @@ function ProfilePanel({
         </Text>
       ))}
       <Text style={styles.section}>Delete account</Text>
-      <RowButton label="Delete account" disabled={working || busy} onPress={() => void removeAccount()} />
+      {confirmDelete ? (
+        <View>
+          <Text style={styles.notice}>Permanently delete your account? This cannot be undone.</Text>
+          <RowButton label="Cancel account deletion" disabled={working || busy} onPress={() => setConfirmDelete(false)} />
+          <RowButton label="Confirm delete account" disabled={working || busy} onPress={() => void removeAccount()} />
+        </View>
+      ) : (
+        <RowButton label="Delete account" disabled={working || busy} onPress={() => setConfirmDelete(true)} />
+      )}
     </View>
   );
 }

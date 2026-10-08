@@ -4,6 +4,7 @@ import { createServer } from "node:net";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import sharp from "sharp";
 
 import { startServer } from "./boot.ts";
 import { setApiKeyPepper } from "./auth/token.ts";
@@ -125,7 +126,7 @@ browserTest(
     const dir = mkdtempSync(join(tmpdir(), "hb-web-"));
     const sqlitePath = join(dir, "homebox.db");
     const photoPath = join(dir, "lamp.jpg");
-    writeFileSync(photoPath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    writeFileSync(photoPath, await sharp({ create: { width: 16, height: 16, channels: 3, background: "#d1a354" } }).jpeg().toBuffer());
     setApiKeyPepper(pepper);
     const running = await startServer({
       HBOX_DATABASE_SQLITE_PATH: sqlitePath,
@@ -284,6 +285,9 @@ browserTest(
 
       expect(await click(page, "Maintenance")).toBe("ok");
       await waitForText(page, "Replace bulb");
+      // A direct Vue-era address must load data too, not just render an empty screen.
+      await page.send("Page.navigate", { url: `${origin}/maintenance` });
+      await waitForText(page, "Replace bulb");
       expect(await click(page, "Mark complete")).toBe("ok");
       await waitForText(page, "Complete");
 
@@ -309,6 +313,40 @@ browserTest(
       expect(maintenance?.date).toMatch(/^\d{4}-\d{2}-\d{2}/);
       const stoolRow = running.db.query(`SELECT name FROM entities WHERE name = ?`).get("Cabin stool") as { name: string } | null;
       expect(stoolRow?.name).toBe("Cabin stool");
+
+      expect(await click(page, "Items")).toBe("ok");
+      expect(await click(page, "Tools")).toBe("ok");
+      for (const title of ["Labels", "QR", "CSV import/export", "Collection import/export", "Profile", "Collection settings", "Members", "Invites", "Notifiers", "Entity types", "Templates", "Tags"]) {
+        expect(await click(page, `Open ${title}`)).toBe("ok");
+        await waitForText(page, title);
+        if (title === "QR") {
+          expect(await click(page, "Make QR code")).toBe("ok");
+          await waitForFetch(page, "/api/v1/qrcode");
+          const started = Date.now();
+          while (Date.now() - started < 8_000 && !(await page.evaluate("!!document.querySelector('[aria-label=\"QR code\"]')"))) {
+            await Bun.sleep(100);
+          }
+          expect(await page.evaluate("!!document.querySelector('[aria-label=\"QR code\"]')")).toBe(true);
+        }
+        if (title === "Tags") await waitForText(page, "Tags is not in this release.");
+        if (title === "Profile") {
+          await waitForText(page, "Theme is not in this release.");
+          expect(await click(page, "Delete account")).toBe("ok");
+          await waitForText(page, "Permanently delete your account?");
+          expect(await click(page, "Cancel account deletion")).toBe("ok");
+          expect(await click(page, "Save profile")).toBe("ok");
+          await waitForText(page, "Profile saved on the server.");
+        }
+        expect(await click(page, "All tools")).toBe("ok");
+      }
+      await page.send("Page.navigate", { url: `${origin}/collection/settings` });
+      await waitForText(page, "Save collection settings");
+      // This page must load the resolved collection rather than start with an empty form.
+      const loadedAt = Date.now();
+      while (Date.now() - loadedAt < 8_000 && await page.evaluate("document.querySelector('[aria-label=\"Collection name\"]')?.value") !== "Ada's Home") {
+        await Bun.sleep(100);
+      }
+      expect(await page.evaluate("document.querySelector('[aria-label=\"Collection name\"]')?.value")).toBe("Ada's Home");
 
       const bad = page.requests.filter((url) => url.includes("homebox.db") || /\/api\/(?!v1)/.test(url));
       expect(bad).toEqual([]);
