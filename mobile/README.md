@@ -20,7 +20,13 @@ This is not an Expo Router API and it does not add Go code. Screens live in `src
 
 The session is sent as an `Authorization` header. The phone does not rely on the browser cookies the website uses, and it does not open the server's inventory database or attachment files.
 
-Plain HTTP is allowed because self-hosted servers are often on a LAN without TLS. Do not point the app at a server you do not trust.
+## Items and locations
+
+After sign-in the app loads this account's items and locations from `GET /api/v1/entities` and the location tree from `GET /api/v1/entities/tree`. Pull to refresh, or tap Refresh. There is no on-phone copy: a failed refresh clears the list.
+
+Creating or editing an item calls `POST` or `PUT /api/v1/entities`, then reads the row back. The detail screen shows the id the server returned. Locations can be browsed, including nested ones, so an item can be filed in one. A full location-tree editor is not included; a new location is only a name and an optional parent.
+
+If the account belongs to more than one collection, the chips at the top switch collection. Inventory requests send that id as `X-Tenant`, the same header the website's collection selector sends. The phone does not filter another collection's rows itself.
 
 ## Tests
 
@@ -29,4 +35,6 @@ cd mobile
 pnpm test
 ```
 
-The tests mock `/api/v1/users/login`, refresh, and `/api/v1/users/self`. They also assert this package does not embed an inventory database.
+The phone tests mock `/api/v1`, including login and inventory. A Bun test in `server/src/contract/mobile-inventory.test.ts` runs the same client against the server and checks the new entity row. They also assert this package does not embed an inventory database.
+
+Plain HTTP is allowed because self-hosted servers are often on a LAN without TLS. Do not point the app at a server you do not trust.

@@ -8,14 +8,20 @@ type Props = {
   account: Account;
   busy: boolean;
   onSignOut: () => void;
+  onBack?: () => void;
 };
 
-export function AccountScreen({ account, busy, onSignOut }: Props) {
+export function AccountScreen({ account, busy, onSignOut, onBack }: Props) {
   const name = account.name.trim() || account.email || "HomeBox account";
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
+        {onBack ? (
+          <Pressable accessibilityRole="button" onPress={onBack} style={styles.back}>
+            <Text style={styles.backText}>Inventory</Text>
+          </Pressable>
+        ) : null}
         <Text style={styles.kicker}>Signed in</Text>
         <Text style={styles.name}>{name}</Text>
         <Text style={styles.email}>{account.email}</Text>
@@ -57,6 +63,8 @@ function Row({ label, value, last = false }: { label: string; value: string; las
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 24, paddingTop: 36, paddingBottom: 40, maxWidth: 520, width: "100%", alignSelf: "center" },
+  back: { alignSelf: "flex-start", marginBottom: 16 },
+  backText: { fontSize: 16, fontWeight: "600", color: colors.primary },
   kicker: { fontSize: 13, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", color: colors.mark },
   name: { marginTop: 8, fontSize: 32, fontWeight: "700", color: colors.text, letterSpacing: -0.4 },
   email: { marginTop: 4, fontSize: 16, color: colors.muted },

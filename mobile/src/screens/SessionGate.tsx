@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { secureSessionStore } from "../session/secure";
 import { restoreSession, signIn, signOut, type Account, type StoredSession } from "../session/session";
-import { AccountScreen } from "./AccountScreen";
+import { InventoryApp } from "./InventoryApp";
 import { SignInScreen, type SignInForm } from "./SignInScreen";
 import { LoadingScreen, OfflineScreen } from "./StatusScreen";
 
@@ -60,7 +60,14 @@ export function SessionGate() {
 
   if (phase.kind === "loading") return <LoadingScreen />;
   if (phase.kind === "account") {
-    return <AccountScreen account={phase.account} busy={phase.busy} onSignOut={() => void leave(phase.session)} />;
+    return (
+      <InventoryApp
+        account={phase.account}
+        session={phase.session}
+        busy={phase.busy}
+        onSignOut={() => void leave(phase.session)}
+      />
+    );
   }
   if (phase.kind === "offline") {
     return (
