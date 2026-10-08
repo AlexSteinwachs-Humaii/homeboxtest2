@@ -46,6 +46,36 @@ On an item, Take photo or Choose from library uploads the file with `POST /api/v
 
 The item screen then shows the attachment from a fresh `GET /api/v1/entities/{id}`. The image itself is `GET /api/v1/entities/{id}/attachments/{attachmentId}` with the login `attachmentToken` as `access_token` and the collection as `tenant`. A failed upload shows the error and does not add a local photo. After a reinstall, the same item still shows the file as long as the server has it.
 
+## Native binary
+
+The installable app is an iOS or Android binary, not a Go program and not a copy of the server. Closing it leaves the inventory on the server. Opening it again asks the server who you are. If that server does not answer, the phone shows an offline error and an empty inventory. There is no on-device replica and no offline sync.
+
+A later JavaScript-only fix can ship over the air to a binary built with the same app version, once the app is linked to an Expo project. That update is the JavaScript bundle only. It does not carry inventory.
+
+Sideload an Android APK (no store listing). This needs JDK 17 and an Android SDK with platform 36, build-tools 36, and NDK 27.1.12297006:
+
+```bash
+cd mobile
+pnpm install
+export ANDROID_HOME="$HOME/Android/Sdk"
+pnpm run android:apk
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+`pnpm run android:apk` runs `scripts/android-apk.sh`: Expo prebuild, then `./gradlew assembleRelease`. The APK is signed with a sideload key created under `signing/` (gitignored). It is not a Play Store key.
+
+The same sideload profile on EAS, including an iOS device binary, and a later JavaScript-only fix:
+
+```bash
+cd mobile
+pnpm exec eas init
+pnpm exec eas build --platform android --profile sideload
+pnpm exec eas build --platform ios --profile sideload
+pnpm exec eas update --channel sideload --message "JavaScript-only fix"
+```
+
+`eas init` writes the Expo project id. The next native build then embeds the updates URL. Until that id exists, updates stay off so the phone does not call Expo on launch. A store listing is `eas build --profile production` and is not required to install the sideload binary.
+
 ## Tests
 
 ```bash
