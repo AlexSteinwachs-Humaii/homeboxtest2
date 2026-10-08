@@ -1,0 +1,15 @@
+{
+  "name": "homebox-server",
+  "private": true,
+  "type": "module",
+  "description": "HomeBox API server (Bun, Hono, Drizzle, bun:sqlite). Opens an existing homebox.db; does not compile the Go API.",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.5",
+    "hono": "^4.9.8",
+    "yaml": "^2.8.1"
+  }
+}
