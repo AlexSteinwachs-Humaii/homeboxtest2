@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { defaultWebServerUrl } from "../api/client";
 import { colors, homebox } from "../theme";
 
 export type SignInForm = {
@@ -34,20 +35,29 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
   const [password, setPassword] = useState("");
   const [stayLoggedIn, setStayLoggedIn] = useState(true);
 
+  // The website is served by the HomeBox it talks to, so the address is the
+  // page origin. The phone still has to name a remote server.
+  const showServerAddress = Platform.OS !== "web";
+  const submittedServerUrl = showServerAddress ? serverUrl : initialServerUrl || defaultWebServerUrl();
+
+  const serverField = showServerAddress ? (
+    <Field
+      label="Server address"
+      value={serverUrl}
+      onChangeText={setServerUrl}
+      placeholder="http://192.168.1.20:7745"
+      autoCapitalize="none"
+      autoCorrect={false}
+      keyboardType="url"
+      textContentType="URL"
+      editable={!busy}
+      hint="Include https:// if your server uses it. Otherwise http:// is assumed."
+    />
+  ) : null;
+
   const form = (
     <>
-      <Field
-        label="Server address"
-        value={serverUrl}
-        onChangeText={setServerUrl}
-        placeholder="http://192.168.1.20:7745"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        textContentType="URL"
-        editable={!busy}
-        hint="Include https:// if your server uses it. Otherwise http:// is assumed."
-      />
+      {serverField}
       <Field
         label="Email"
         value={username}
@@ -89,7 +99,7 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
       <Pressable
         accessibilityRole="button"
         disabled={busy}
-        onPress={() => onSubmit({ serverUrl, username, password, stayLoggedIn })}
+        onPress={() => onSubmit({ serverUrl: submittedServerUrl, username, password, stayLoggedIn })}
         style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, busy && styles.buttonBusy]}
       >
         <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>

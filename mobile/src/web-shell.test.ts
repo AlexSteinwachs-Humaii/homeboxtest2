@@ -29,6 +29,16 @@ test("the Expo web shell is not the Nuxt app and does not open the inventory dat
   );
 });
 
+test("the website login asks only for email and password", async () => {
+  const signIn = await readFile(path.join(mobileRoot, "src/screens/SignInScreen.tsx"), "utf8");
+  assert.match(signIn, /const showServerAddress = Platform\.OS !== "web"/);
+  assert.match(signIn, /label="Email"/);
+  assert.match(signIn, /label="Password"/);
+  const webBranch = signIn.slice(signIn.indexOf('if (Platform.OS === "web")'));
+  assert.equal(webBranch.includes("Server address"), false);
+  assert.match(signIn, /label="Server address"/, "the phone sign-in still names a remote server");
+});
+
 test("the browser chrome follows the original HomeBox website, not the phone list", async () => {
   const shell = await readFile(path.join(mobileRoot, "src/screens/WebShell.tsx"), "utf8");
   const theme = await readFile(path.join(mobileRoot, "src/theme.ts"), "utf8");

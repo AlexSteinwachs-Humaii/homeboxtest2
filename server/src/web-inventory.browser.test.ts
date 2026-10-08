@@ -215,7 +215,10 @@ browserTest(
       await page.send("Page.navigate", { url: origin });
 
       await waitForText(page, "Sign in");
-      expect(await fill(page, "Server address", origin)).toBe("ok");
+      const loginText = String(await page.evaluate("document.body.innerText"));
+      expect(loginText).not.toContain("Server address");
+      expect(loginText).toContain("Email");
+      expect(loginText).toContain("Password");
       expect(await fill(page, "Email", "ada-web@example.com")).toBe("ok");
       expect(await fill(page, "Password", "secret1")).toBe("ok");
       await Bun.sleep(100);
