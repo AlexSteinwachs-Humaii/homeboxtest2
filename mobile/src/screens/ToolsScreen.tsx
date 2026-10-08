@@ -117,7 +117,7 @@ function ToolPanel(props: Props & { toolId: ToolId }) {
     case "templates":
       return <TemplatesPanel client={props.client} focusId={props.focusId} />;
     case "tags":
-      return <GapNotice title="Tags" />;
+      return <TagsPanel client={props.client} focusId={props.focusId} />;
     default:
       return <GapNotice title="This page" />;
   }
@@ -811,6 +811,93 @@ function NotifiersPanel({ client }: { client: HomeboxClient }) {
           <RowButton label={`Delete notifier ${row.name}`} onPress={() => void remove(row.id)} />
         </View>
       ))}
+    </View>
+  );
+}
+
+function TagsPanel({ client, focusId }: { client: HomeboxClient; focusId?: string }) {
+  const [rows, setRows] = useState<Array<{ id: string; name: string; description: string; color: string; icon: string }>>([]);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState("");
+  const [icon, setIcon] = useState("");
+  const [editing, setEditing] = useState(focusId ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const result = await client.listTags();
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setRows(result.data.map((tag) => ({ id: tag.id, name: tag.name, description: tag.description ?? "", color: tag.color, icon: tag.icon ?? "" })));
+  }
+
+  useEffect(() => {
+    void load();
+  }, [client]);
+
+  function beginEdit(id: string) {
+    const row = rows.find((item) => item.id === id);
+    setEditing(id);
+    setName(row?.name ?? "");
+    setDescription(row?.description ?? "");
+    setColor(row?.color ?? "");
+    setIcon(row?.icon ?? "");
+    setError(null);
+  }
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    const input = { name: name.trim(), description, color, icon };
+    const result = editing ? await client.updateTag(editing, input) : await client.createTag(input);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setEditing("");
+    setName("");
+    setDescription("");
+    setColor("");
+    setIcon("");
+    await load();
+  }
+
+  async function remove(id: string) {
+    setBusy(true);
+    setError(null);
+    const result = await client.deleteTag(id);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    if (editing === id) setEditing("");
+    await load();
+  }
+
+  return (
+    <View>
+      <Text style={styles.note}>Tags belong to this collection. Name, description, color, and icon are saved on the server.</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {rows.length === 0 ? <Text style={styles.note}>No tags yet.</Text> : null}
+      {rows.map((row) => (
+        <View key={row.id} style={styles.card}>
+          <Text style={styles.cardTitle}>{row.name}</Text>
+          <Text style={styles.note}>{[row.description, row.color, row.icon].filter(Boolean).join(" · ") || "No description"}</Text>
+          <RowButton label={`Edit ${row.name}`} onPress={() => beginEdit(row.id)} />
+          <RowButton label={`Delete ${row.name}`} disabled={busy} onPress={() => void remove(row.id)} />
+        </View>
+      ))}
+      <Text style={styles.section}>{editing ? "Edit tag" : "New tag"}</Text>
+      <TextInput value={name} onChangeText={setName} accessibilityLabel="Tag name" placeholder="Kitchen" placeholderTextColor={colors.muted} style={styles.input} />
+      <TextInput value={description} onChangeText={setDescription} accessibilityLabel="Tag description" placeholder="Description" placeholderTextColor={colors.muted} style={styles.input} />
+      <TextInput value={color} onChangeText={setColor} accessibilityLabel="Tag color" placeholder="#5c7f67" placeholderTextColor={colors.muted} style={styles.input} />
+      <TextInput value={icon} onChangeText={setIcon} accessibilityLabel="Tag icon" placeholder="mdi-tag" placeholderTextColor={colors.muted} style={styles.input} />
+      <RowButton label={busy ? "Saving…" : editing ? "Save tag" : "Add tag"} disabled={busy || name.trim() === ""} onPress={() => void save()} />
     </View>
   );
 }

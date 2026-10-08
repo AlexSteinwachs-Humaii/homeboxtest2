@@ -208,12 +208,15 @@ export type EntitySummary = {
   itemCount: number;
   insured: boolean;
   purchasePrice: number;
+  tags?: Array<{ id: string; name: string }>;
 };
 
 export type TagChip = {
   id: string;
   name: string;
   color: string;
+  description?: string;
+  icon?: string;
 };
 
 export type GroupStatistics = {
@@ -506,6 +509,42 @@ export class HomeboxClient {
       parse: readTagChips,
       failure: "The server did not return tags.",
       malformed: "The server did not return tags.",
+    });
+  }
+
+  createTag(input: { name: string; description?: string; color?: string; icon?: string }): Promise<ApiResult<TagChip>> {
+    return this.request("/api/v1/tags", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: input,
+      parse: readTagChip,
+      failure: "The server did not create this tag.",
+      malformed: "The server did not return the new tag.",
+    });
+  }
+
+  updateTag(id: string, input: { name: string; description?: string; color?: string; icon?: string; parentId?: string | null }): Promise<ApiResult<TagChip>> {
+    return this.request(`/api/v1/tags/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      auth: true,
+      tenant: true,
+      body: input,
+      parse: readTagChip,
+      failure: "The server did not save this tag.",
+      malformed: "The server did not return the saved tag.",
+    });
+  }
+
+  deleteTag(id: string): Promise<ApiResult<{ deleted: true }>> {
+    return this.request(`/api/v1/tags/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      auth: true,
+      tenant: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not delete this tag.",
+      malformed: "The server did not confirm the deletion.",
     });
   }
 
@@ -1378,6 +1417,11 @@ function readSummary(data: unknown): EntitySummary | null {
     itemCount: typeof data.itemCount === "number" ? data.itemCount : 0,
     insured: data.insured === true,
     purchasePrice: typeof data.purchasePrice === "number" && Number.isFinite(data.purchasePrice) ? data.purchasePrice : 0,
+    tags: Array.isArray(data.tags)
+      ? data.tags
+          .filter((tag): tag is Record<string, unknown> => isRecord(tag) && typeof tag.id === "string")
+          .map((tag) => ({ id: tag.id as string, name: typeof tag.name === "string" ? tag.name : "" }))
+      : [],
   };
 }
 
@@ -1392,12 +1436,23 @@ function readGroupStatistics(data: unknown): GroupStatistics | null {
   };
 }
 
+function readTagChip(data: unknown): TagChip | null {
+  if (!isRecord(data) || typeof data.id !== "string" || typeof data.name !== "string") return null;
+  return {
+    id: data.id,
+    name: data.name,
+    color: typeof data.color === "string" ? data.color : "",
+    description: typeof data.description === "string" ? data.description : "",
+    icon: typeof data.icon === "string" ? data.icon : "",
+  };
+}
+
 function readTagChips(data: unknown): TagChip[] | null {
   if (!Array.isArray(data)) return null;
   const tags: TagChip[] = [];
   for (const row of data) {
-    if (!isRecord(row) || typeof row.id !== "string" || typeof row.name !== "string") continue;
-    tags.push({ id: row.id, name: row.name, color: typeof row.color === "string" ? row.color : "" });
+    const tag = readTagChip(row);
+    if (tag) tags.push(tag);
   }
   return tags;
 }

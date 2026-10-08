@@ -11,6 +11,7 @@ import {
   insertEntity,
   insertEntityType,
   insertGroup,
+  insertTag,
   insertUser,
   requireGroupId,
 } from "../db/inventory.ts";
@@ -323,5 +324,91 @@ describe("cross-group references are not found", () => {
     expect(maint.n).toBe(0);
     const templates = db.query(`SELECT COUNT(*) AS n FROM entity_templates`).get() as { n: number };
     expect(templates.n).toBe(0);
+  });
+
+  test("PUT and PATCH persist requested values and reject foreign references before writing", async () => {
+    const db = openFixture();
+    const seed = seedPair(db);
+    db.run(`INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, 'user')`, [
+      uuidToBytes(seed.ownerA),
+      uuidToBytes(seed.groupB),
+    ]);
+    const secretType = insertEntityType(db, { name: "SECRET TYPE B", groupId: seed.groupB, isLocation: 0 });
+    const secretTag = insertTag(db, { name: "SECRET TAG B", groupId: seed.groupB });
+    const app = appFor(db);
+    const headers = { ...cookie(seed.ownerSession.raw), "content-type": "application/json" };
+
+    const stolen = await app.request(`http://127.0.0.1:7745/api/v1/entities/${seed.entityA}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        name: "should not stick",
+        entityTypeId: secretType,
+        tagIds: [secretTag],
+        fields: [{ name: "QA custom field", type: "text", textValue: "persist me" }],
+        assetId: "099-999",
+      }),
+    });
+    expect(stolen.status).toBe(404);
+    const body = await stolen.text();
+    expect(body).not.toContain("SECRET TYPE B");
+    expect(body).not.toContain("SECRET TAG B");
+    expect(getEntityForGroup(db, seed.groupA, seed.entityA)?.name).toBe("Alpha lamp");
+    expect(getEntityForGroup(db, seed.groupA, seed.entityA)?.assetId ?? 0).not.toBe(99999);
+
+    const saved = await app.request(`http://127.0.0.1:7745/api/v1/entities/${seed.entityA}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        name: "Alpha lamp",
+        assetId: "099-999",
+        fields: [{ name: "QA custom field", type: "text", textValue: "persist me" }],
+      }),
+    });
+    expect(saved.status).toBe(200);
+    const put = (await saved.json()) as { assetId: string; fields: Array<{ name: string; textValue: string }> };
+    expect(put.assetId).toBe("099-999");
+    expect(put.fields).toEqual([expect.objectContaining({ name: "QA custom field", textValue: "persist me" })]);
+
+    const patched = await app.request(`http://127.0.0.1:7745/api/v1/entities/${seed.entityA}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ quantity: 7 }),
+    });
+    expect(patched.status).toBe(200);
+    expect(((await patched.json()) as { quantity: number }).quantity).toBe(7);
+    const readBack = await app.request(`http://127.0.0.1:7745/api/v1/entities/${seed.entityA}`, {
+      headers: cookie(seed.ownerSession.raw),
+    });
+    const again = (await readBack.json()) as { quantity: number; assetId: string; fields: Array<{ textValue: string }> };
+    expect(again.quantity).toBe(7);
+    expect(again.assetId).toBe("099-999");
+    expect(again.fields[0]?.textValue).toBe("persist me");
+
+    const created = await app.request("http://127.0.0.1:7745/api/v1/tags", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Kitchen" }),
+    });
+    expect(created.status).toBe(201);
+    const tagId = ((await created.json()) as { id: string }).id;
+    const tagged = await app.request(`http://127.0.0.1:7745/api/v1/tags/${tagId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ name: "Kitchen", description: "Warm", color: "#5c7f67", icon: "mdi-tag" }),
+    });
+    expect(tagged.status).toBe(200);
+    const tag = (await tagged.json()) as { description: string; color: string; icon: string };
+    expect(tag.description).toBe("Warm");
+    expect(tag.color).toBe("#5c7f67");
+    expect(tag.icon).toBe("mdi-tag");
+
+    const foreignParent = await app.request(`http://127.0.0.1:7745/api/v1/tags/${tagId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ name: "Kitchen", parentId: secretTag, description: "nope" }),
+    });
+    expect(foreignParent.status).toBe(404);
+    expect((await foreignParent.text())).not.toContain("SECRET TAG B");
   });
 });

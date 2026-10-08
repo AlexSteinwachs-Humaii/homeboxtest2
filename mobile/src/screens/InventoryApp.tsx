@@ -9,6 +9,7 @@ import { pickPhoto, takePhoto } from "../photos/picker";
 import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
 import { readPreferredCollection, writePreferredCollection } from "../session/collection";
 import type { Account, StoredSession } from "../session/session";
+import { subscribeInvalidation } from "../events/invalidation";
 import { resolveWebPath, type ToolId } from "../tools/catalog";
 import { AccountScreen } from "./AccountScreen";
 import { CollectionSwitcher, InventoryScreen } from "./InventoryScreen";
@@ -106,9 +107,24 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
     [account.defaultGroupId, client],
   );
 
+  const [homeTick, setHomeTick] = useState(0);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
   useEffect(() => {
     void reload(readPreferredCollection() || account.defaultGroupId, true);
   }, [account.defaultGroupId, reload]);
+
+  useEffect(() => {
+    const active = snapshot?.groupId ?? groupId;
+    if (!active || !session.token) return;
+    return subscribeInvalidation(session.serverUrl, session.token, active, () => {
+      void reload(active, false);
+      setHomeTick((tick) => tick + 1);
+      const current = viewRef.current;
+      if (current.name === "item" || current.name === "location") void refreshDetail(current.id);
+    });
+  }, [groupId, reload, session.serverUrl, session.token, snapshot?.groupId]);
 
   async function runSearch(text: string, activeGroup: string) {
     const ticket = ++searchTicket.current;
@@ -564,6 +580,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
         groupId={activeGroup}
         locations={snapshot?.locations ?? []}
         loading={loading}
+        refreshKey={homeTick}
         onOpenItem={(id) => void openEntity(id, "item")}
         onOpenLocation={(id) => void openEntity(id, "location")}
         onOpenTags={() => setView({ name: "tools", toolId: "tags" })}

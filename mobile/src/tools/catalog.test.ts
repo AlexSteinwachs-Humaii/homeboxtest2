@@ -44,8 +44,8 @@ test("every Vue tool is named and either calls an existing route or states the g
     }
   }
   const tags = TOOLS.find((entry) => entry.title === "Tags");
-  assert.equal(tags?.implemented, false);
-  assert.equal(notInThisRelease("Tags"), "Tags is not in this release.");
+  assert.equal(tags?.implemented, true);
+  assert.deepEqual(tags?.endpoints, ["/api/v1/tags"]);
 });
 
 test("Vue addresses open the tool or a named notice, never a blank path", () => {
@@ -60,11 +60,8 @@ test("Vue addresses open the tool or a named notice, never a blank path", () => 
   assert.equal(resolveWebPath("/template/abc").kind, "tool");
   assert.equal(resolveWebPath("/collection/tools").kind, "hub");
   assert.equal(resolveWebPath("/tags").kind, "tool");
-  const oldLabel = resolveWebPath("/label/abc");
-  assert.equal(oldLabel.kind, "gap");
-  if (oldLabel.kind === "gap") {
-    assert.equal(notInThisRelease(oldLabel.title), "Tags is not in this release.");
-  }
+  assert.deepEqual(resolveWebPath("/label/abc"), { kind: "tool", id: "labels", focusId: "abc" });
+  assert.deepEqual(resolveWebPath("/tag/abc"), { kind: "tool", id: "tags", focusId: "abc" });
   const unknown = resolveWebPath("/scanner-ar");
   assert.equal(unknown.kind, "gap");
   if (unknown.kind === "gap") assert.match(notInThisRelease(unknown.title), /is not in this release/);

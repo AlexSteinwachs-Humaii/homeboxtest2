@@ -15,6 +15,7 @@ import { formatSqliteDateTime } from "../db/storage.ts";
 import { eventsHttpResponse } from "../events/channel.ts";
 import { queryEntityList } from "../contract/list.ts";
 import { presentEntity, presentTag } from "../contract/present.ts";
+import { patchEntityForGroup, updateTagForGroup } from "../contract/writes.ts";
 import { authorize, jsonError, type Actor } from "./guard.ts";
 import { isSupportedCurrency } from "./currencies.ts";
 import {
@@ -39,10 +40,7 @@ import {
   listExportsForGroup,
   listInvitations,
   listMembers,
-  patchEntityTagsForGroup,
   removeMember,
-  renameEntityForGroup,
-  renameTagForGroup,
   TenancyError,
   updateGroup,
 } from "./tenancy.ts";
@@ -137,10 +135,7 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
     try {
       const body = await readJson(c);
       const id = c.req.param("id");
-      if (typeof body.name === "string") {
-        if (!renameEntityForGroup(db, actor.groupId, id, body.name)) return jsonError(404, "Not Found");
-      }
-      if (Array.isArray(body.tagIds)) patchEntityTagsForGroup(db, actor.groupId, id, body.tagIds.map(String));
+      patchEntityForGroup(db, actor.groupId, id, body);
       const row = presentEntity(db, actor.groupId, id);
       if (!row) return jsonError(404, "Not Found");
       return Response.json(row);
@@ -184,11 +179,10 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
     if (actor instanceof Response) return actor;
     try {
       const body = await readJson(c);
-      if (!renameTagForGroup(db, actor.groupId, c.req.param("id"), String(body.name ?? ""))) {
-        return jsonError(404, "Not Found");
-      }
+      updateTagForGroup(db, actor.groupId, c.req.param("id"), body);
       const tag = getTagForGroup(db, actor.groupId, c.req.param("id"));
-      return Response.json(tag ? presentTag(db, tag) : { id: c.req.param("id"), name: String(body.name ?? "") });
+      if (!tag) return jsonError(404, "Not Found");
+      return Response.json(presentTag(db, tag));
     } catch (err) {
       return fromTenancy(err);
     }

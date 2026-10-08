@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { homebox } from "../theme";
@@ -38,16 +38,45 @@ type Props = {
 // Desktop chrome for the browser client. It follows the Go app's website:
 // gray sidebar, house mark, sage Create menu, dark header, gray canvas.
 // The phone layout is unchanged. This does not import the Nuxt app.
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth < 800);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const apply = () => setNarrow(window.innerWidth < 800);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+  return narrow;
+}
+
 export function WebShell(props: Props) {
   const welcome = props.accountName.trim() || "there";
   const [menu, setMenu] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const narrow = useNarrow();
+  const go = (nav: WebNav) => {
+    setNavOpen(false);
+    props.onNavigate(nav);
+  };
   return (
     <View style={styles.root}>
-      <View style={styles.sidebar}>
+      {narrow ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={navOpen ? "Close navigation" : "Open navigation"}
+          onPress={() => setNavOpen((open) => !open)}
+          style={styles.navToggle}
+        >
+          <Text style={styles.navToggleText}>{navOpen ? "Close" : "Menu"}</Text>
+        </Pressable>
+      ) : null}
+      {narrow && navOpen ? <Pressable accessibilityRole="button" accessibilityLabel="Close navigation" onPress={() => setNavOpen(false)} style={styles.backdrop} /> : null}
+      <View style={[styles.sidebar, narrow && styles.sidebarNarrow, narrow && !navOpen && styles.sidebarHidden]}>
         <Text style={styles.welcome} numberOfLines={1}>
           Welcome, {welcome}
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => props.onNavigate("home")} style={styles.logoButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => go("home")} style={styles.logoButton}>
           <View style={styles.logo}>
             <HouseMark width={62} height={56} />
           </View>
@@ -91,7 +120,7 @@ export function WebShell(props: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={item.aria}
                 accessibilityState={{ selected }}
-                onPress={() => props.onNavigate(item.id)}
+                onPress={() => go(item.id)}
                 style={[styles.navItem, selected && styles.navItemSelected]}
               >
                 <Icon name={item.icon} size={18} color={selected ? homebox.accentText : homebox.sidebarText} />
@@ -106,8 +135,8 @@ export function WebShell(props: Props) {
         </Pressable>
       </View>
       <View style={styles.main}>
-        <View style={styles.header}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => props.onNavigate("home")} style={styles.wordmarkButton}>
+        <View style={[styles.header, narrow && styles.headerNarrow]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => go("home")} style={styles.wordmarkButton}>
             <Wordmark />
           </Pressable>
           <View style={styles.headerSpacer} />
@@ -129,7 +158,19 @@ function MenuRow({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, flexDirection: "row", backgroundColor: homebox.canvas, minHeight: "100%" },
+  root: { flex: 1, flexDirection: "row", backgroundColor: homebox.canvas, minHeight: "100%", width: "100%", maxWidth: "100%", overflow: "hidden" },
+  navToggle: {
+    position: "absolute",
+    top: 14,
+    left: 8,
+    zIndex: 6,
+    backgroundColor: homebox.header,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  navToggleText: { color: homebox.headerText, fontSize: 14, fontWeight: "600" },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.25)", zIndex: 3 },
   sidebar: {
     width: 256,
     backgroundColor: homebox.sidebar,
@@ -137,6 +178,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
+  sidebarNarrow: { position: "absolute", top: 0, bottom: 0, left: 0, zIndex: 4 },
+  sidebarHidden: { display: "none" },
   welcome: { textAlign: "center", fontSize: 16, color: homebox.sidebarText, marginBottom: 8 },
   logoButton: { alignItems: "center", marginBottom: 12 },
   logo: {
@@ -193,23 +236,24 @@ const styles = StyleSheet.create({
   navLabelSelected: { color: homebox.accentText, fontWeight: "600" },
   signOut: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12 },
   signOutText: { color: homebox.sidebarText, fontSize: 14, fontWeight: "600" },
-  main: { flex: 1, minWidth: 0 },
+  main: { flex: 1, minWidth: 0, maxWidth: "100%" },
   header: {
     height: 64,
     backgroundColor: homebox.header,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    gap: 12,
+    gap: 8,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     zIndex: 2,
   },
-  wordmarkButton: { paddingHorizontal: 4 },
+  headerNarrow: { paddingLeft: 72 },
+  wordmarkButton: { paddingHorizontal: 4, flexShrink: 1 },
   headerSpacer: { flex: 1 },
-  headerSearch: { alignItems: "flex-end" },
+  headerSearch: { flex: 1, minWidth: 0, maxWidth: 420, alignItems: "flex-end" },
   content: { flex: 1, backgroundColor: homebox.canvas },
   footer: { textAlign: "center", color: homebox.muted, fontSize: 13, paddingBottom: 12, backgroundColor: homebox.canvas },
 });

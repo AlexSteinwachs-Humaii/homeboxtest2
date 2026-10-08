@@ -124,27 +124,70 @@ export function InventoryScreen(props: Props) {
   const showingItems = props.searchActive || props.tab === "items";
   const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
 
+  const [filter, setFilter] = useState<null | "locations" | "tags" | "options" | "tips">(null);
+  const [locationId, setLocationId] = useState<string | null>(null);
+  const [tagId, setTagId] = useState<string | null>(null);
+  const [insuredOnly, setInsuredOnly] = useState(false);
+  const tagChoices = new Map<string, string>();
+  for (const item of props.items) {
+    for (const tag of item.tags ?? []) tagChoices.set(tag.id, tag.name);
+  }
+  const shownItems = props.items.filter((item) => {
+    if (locationId && item.parentId !== locationId) return false;
+    if (tagId && !(item.tags ?? []).some((tag) => tag.id === tagId)) return false;
+    if (insuredOnly && !item.insured) return false;
+    return true;
+  });
+
   if (Platform.OS === "web") {
     const heading = props.tab === "items" ? "Search" : "Locations";
+    const toggle = (name: "locations" | "tags" | "options" | "tips") => setFilter((current) => (current === name ? null : name));
     return (
       <ScrollView contentContainerStyle={styles.webPage}>
         <View style={styles.webHeadingRow}>
           <Text style={styles.webHeading}>{heading}</Text>
         </View>
         {showingItems ? (
-          <View style={styles.filterRow}>
-            <Text style={styles.filterChip}>Locations</Text>
-            <Text style={styles.filterChip}>Tags</Text>
-            <Text style={styles.filterChip}>Options</Text>
-            <View style={styles.filterGrow} />
-            <Text style={styles.filterChip}>Tips</Text>
+          <View>
+            <View style={styles.filterRow}>
+              <FilterChip label="Locations" name="Filter by location" pressed={filter === "locations" || locationId !== null} onPress={() => toggle("locations")} />
+              <FilterChip label="Tags" name="Filter by tag" pressed={filter === "tags" || tagId !== null} onPress={() => toggle("tags")} />
+              <FilterChip label="Options" name="Filter by option" pressed={filter === "options" || insuredOnly} onPress={() => toggle("options")} />
+              <View style={styles.filterGrow} />
+              <FilterChip label="Tips" name="Show search tips" pressed={filter === "tips"} onPress={() => toggle("tips")} />
+            </View>
+            {filter === "locations" ? (
+              <View style={styles.filterPanel}>
+                <FilterChoice label="All locations" selected={locationId === null} onPress={() => { setLocationId(null); setFilter(null); }} />
+                {props.locations.map((location) => (
+                  <FilterChoice key={location.id} label={location.name} selected={locationId === location.id} onPress={() => { setLocationId(location.id); setFilter(null); }} />
+                ))}
+              </View>
+            ) : null}
+            {filter === "tags" ? (
+              <View style={styles.filterPanel}>
+                <FilterChoice label="All tags" selected={tagId === null} onPress={() => { setTagId(null); setFilter(null); }} />
+                {[...tagChoices.entries()].map(([id, name]) => (
+                  <FilterChoice key={id} label={name} selected={tagId === id} onPress={() => { setTagId(id); setFilter(null); }} />
+                ))}
+                {tagChoices.size === 0 ? <Text style={styles.filterNote}>No tags on these items yet.</Text> : null}
+              </View>
+            ) : null}
+            {filter === "options" ? (
+              <View style={styles.filterPanel}>
+                <FilterChoice label={insuredOnly ? "Insured only" : "Show all items"} selected={insuredOnly} onPress={() => setInsuredOnly((value) => !value)} />
+              </View>
+            ) : null}
+            {filter === "tips" ? (
+              <Text style={styles.filterNote}>Search ignores accents. Locations and Tags narrow this collection. Options can keep only insured items.</Text>
+            ) : null}
           </View>
         ) : null}
         {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
         {props.loading && !props.refreshing ? <Text style={styles.empty}>Loading from the server…</Text> : null}
         {showingItems ? (
           <Items
-            items={props.items}
+            items={shownItems}
             loading={props.loading}
             error={props.error}
             searchActive={props.searchActive}
@@ -253,6 +296,28 @@ function TabButton({ label, selected, onPress }: { label: string; selected: bool
   );
 }
 
+function FilterChip(props: { label: string; name: string; pressed: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.name}
+      accessibilityState={{ expanded: props.pressed }}
+      onPress={props.onPress}
+      style={[styles.filterChip, props.pressed && styles.filterChipPressed]}
+    >
+      <Text style={styles.filterChipText}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+function FilterChoice(props: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: props.selected }} onPress={props.onPress} style={styles.filterChoice}>
+      <Text style={styles.filterChoiceText}>{props.selected ? `\u2713 ${props.label}` : props.label}</Text>
+    </Pressable>
+  );
+}
+
 function flattenLocations(nodes: TreeNode[], depth = 0): Array<{ id: string; name: string; depth: number }> {
   const rows: Array<{ id: string; name: string; depth: number }> = [];
   for (const node of nodes) {
@@ -322,6 +387,12 @@ const styles = StyleSheet.create({
   webHeadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   webHeading: { fontSize: 18, fontWeight: "600", color: homebox.text },
   filterRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" },
+  filterChipPressed: { backgroundColor: homebox.accent, borderColor: homebox.primary },
+  filterChipText: { fontSize: 14, color: homebox.text },
+  filterPanel: { backgroundColor: homebox.card, borderWidth: 1, borderColor: homebox.border, borderRadius: 6, marginBottom: 12, paddingVertical: 4 },
+  filterChoice: { paddingHorizontal: 12, paddingVertical: 8 },
+  filterChoiceText: { fontSize: 14, color: homebox.text },
+  filterNote: { fontSize: 14, color: homebox.muted, marginBottom: 12 },
   filterChip: {
     borderWidth: 1,
     borderColor: homebox.border,

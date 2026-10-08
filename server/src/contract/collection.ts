@@ -171,11 +171,20 @@ export function buildCollectionZip(
     entries.push({ name: `${table.name}.json`, data: encodeJson(rows) });
   }
   const [gidBytes, gidText] = idPair(groupId);
+  // Same scope as the attachments table dump: entity-linked rows plus the
+  // detached thumbnail rows they point at. Metadata without these bytes
+  // restores a relation whose file is missing.
   const attachments = db
     .query(
-      `SELECT id, path FROM attachments WHERE entity_attachments IN (SELECT id FROM entities WHERE group_entities = ? OR group_entities = ?)`,
+      `SELECT id, path FROM attachments WHERE
+         entity_attachments IN (SELECT id FROM entities WHERE group_entities = ? OR group_entities = ?)
+         OR id IN (
+           SELECT attachment_thumbnail FROM attachments
+           WHERE attachment_thumbnail IS NOT NULL
+             AND entity_attachments IN (SELECT id FROM entities WHERE group_entities = ? OR group_entities = ?)
+         )`,
     )
-    .all(gidBytes, gidText) as Array<{ id: unknown; path: string }>;
+    .all(gidBytes, gidText, gidBytes, gidText) as Array<{ id: unknown; path: string }>;
   for (const row of attachments) {
     if (!row.path) continue;
     const id = readUuid(row.id);

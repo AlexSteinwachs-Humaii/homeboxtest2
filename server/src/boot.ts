@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 import { migrateLegacyFlatPaths } from "./attachments/blob.ts";
 import { setApiKeyPepper, assertApiKeyPepper } from "./auth/token.ts";
+import { startDueNotifiers, stopDueNotifiers } from "./contract/notify.ts";
 import { eventWebSocket, handleEventsUpgrade, startEventChannel, stopEventChannel } from "./events/channel.ts";
 import { initOidc, type OidcRuntime } from "./auth/oidc.ts";
 import { createApp } from "./app.ts";
@@ -85,6 +86,7 @@ export async function startServer(
   }
   const app = createApp(prepared.config, env, { db: prepared.db, oidc });
   startEventChannel();
+  startDueNotifiers(prepared.db);
   const server = Bun.serve({
     hostname: prepared.config.host,
     port: prepared.config.port,
@@ -101,6 +103,7 @@ export async function startServer(
     ...prepared,
     server,
     stop: () => {
+      stopDueNotifiers();
       stopEventChannel();
       server.stop(true);
       prepared.db.close();

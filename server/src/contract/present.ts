@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 
-import { listAttachmentsForEntity, type AttachmentRow } from "../auth/tenancy.ts";
+import { getAttachmentForGroup, listAttachmentsForEntity, type AttachmentRow } from "../auth/tenancy.ts";
 import { getEntityById, getTagById, listEntities, listTags, type EntityRow, type TagRow } from "../db/inventory.ts";
 import { idPair, readUuid } from "./ids.ts";
 
@@ -29,12 +29,12 @@ type TypeRow = {
   defaultTemplateId: string;
 };
 
-function loadType(db: Database, id: string | null): TypeRow | null {
+function loadType(db: Database, id: string | null, groupId?: string): TypeRow | null {
   if (!id) return null;
   const [bytes, textId] = idPair(id);
   const row = db
     .query(
-      `SELECT id, name, description, icon, is_location, created_at, updated_at, entity_type_default_template
+      `SELECT id, name, description, icon, is_location, created_at, updated_at, entity_type_default_template, group_entity_types
        FROM entity_types WHERE id = ? OR id = ?`,
     )
     .get(bytes, textId) as
@@ -47,9 +47,11 @@ function loadType(db: Database, id: string | null): TypeRow | null {
         created_at: string;
         updated_at: string;
         entity_type_default_template: unknown;
+        group_entity_types: unknown;
       }
     | null;
   if (!row) return null;
+  if (groupId && readUuid(row.group_entity_types) !== groupId) return null;
   return {
     id: readUuid(row.id) ?? id,
     name: row.name,
@@ -81,7 +83,7 @@ function emptyTemplateSummary() {
   return { id: "", name: "", description: "", createdAt: "", updatedAt: "" };
 }
 
-function tagsFor(db: Database, entityId: string): TagRow[] {
+function tagsFor(db: Database, entityId: string, groupId: string): TagRow[] {
   const [bytes, textId] = idPair(entityId);
   const rows = db
     .query(`SELECT tag_id FROM tag_entities WHERE entity_id = ? OR entity_id = ?`)
@@ -93,7 +95,7 @@ function tagsFor(db: Database, entityId: string): TagRow[] {
     const tag = db.query(`SELECT id FROM tags WHERE id = ? OR id = ?`).get(...idPair(id));
     if (!tag) continue;
     const loaded = loadTag(db, id);
-    if (loaded) tags.push(loaded);
+    if (loaded && loaded.groupId === groupId) tags.push(loaded);
   }
   return tags;
 }
@@ -216,15 +218,17 @@ function attachmentsFor(db: Database, groupId: string, entityId: string) {
       .query(`SELECT attachment_thumbnail FROM attachments WHERE id = ? OR id = ?`)
       .get(bytes, textId) as { attachment_thumbnail: unknown } | null;
     const thumbId = readUuid(thumb?.attachment_thumbnail);
+    // Generated thumbnails are detached rows (entity_attachments is null).
+    // They are not in the entity's attachment list, so look them up by id.
     const thumbnail = thumbId
-      ? rows.find((item) => item.id === thumbId) ?? null
+      ? rows.find((item) => item.id === thumbId) ?? getAttachmentForGroup(db, groupId, thumbId)
       : null;
     return attachmentOut(row, thumbnail);
   });
 }
 
 function summaryFrom(db: Database, row: EntityRow, tags: TagRow[]) {
-  const type = loadType(db, row.entityTypeId);
+  const type = loadType(db, row.entityTypeId, row.groupId);
   const parent = row.parentId ? getEntityById(db, row.groupId, row.parentId) : null;
   return {
     id: row.id,
@@ -248,7 +252,7 @@ function summaryFrom(db: Database, row: EntityRow, tags: TagRow[]) {
 }
 
 export function presentSummary(db: Database, row: EntityRow) {
-  const summary = summaryFrom(db, row, tagsFor(db, row.id));
+  const summary = summaryFrom(db, row, tagsFor(db, row.id, row.groupId));
   const photos = attachmentsFor(db, row.groupId, row.id).filter((item) => item.type === "photo");
   const primary = photos.find((item) => item.primary) ?? photos[0];
   summary.imageId = primary?.id ?? null;
@@ -264,6 +268,7 @@ export function presentEntity(db: Database, groupId: string, id: string) {
   const row = getEntityById(db, groupId, id);
   if (!row) return null;
   const summary = presentSummary(db, row);
+  const extra = extraPurchase(db, row.id);
   const parent = row.parentId ? getEntityById(db, groupId, row.parentId) : null;
   let location = parent && parent.isLocation ? presentSummary(db, parent) : null;
   if (parent && !parent.isLocation) {
@@ -289,12 +294,12 @@ export function presentEntity(db: Database, groupId: string, id: string) {
     serialNumber: text(row.serialNumber),
     lifetimeWarranty: bool(row.lifetimeWarranty),
     warrantyExpires: text(row.warrantyExpires),
-    warrantyDetails: "",
+    warrantyDetails: text(extra?.warranty_details),
     purchaseDate: text(row.purchaseDate),
-    purchaseFrom: "",
+    purchaseFrom: text(extra?.purchase_from),
     soldPrice: row.soldPrice,
-    soldTo: "",
-    soldNotes: "",
+    soldTo: text(extra?.sold_to),
+    soldNotes: text(extra?.sold_notes),
     syncChildEntityLocations: bool(row.syncChildEntityLocations),
     totalPrice: row.purchasePrice * row.quantity,
     location,

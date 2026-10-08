@@ -96,13 +96,19 @@ export function handleEventsUpgrade(
   const actor = authorize(request, db);
   if (actor instanceof Response) return actor;
 
-  const headers: Record<string, string> = {};
+  // Bun 1.4 rejects a plain object for upgrade headers, including {}. A
+  // cookie-only handshake has no subprotocol to echo, so omit headers then.
+  // When hb-auth was offered, echo it with a Headers instance.
+  const headers = new Headers();
   const offered = request.headers.get("sec-websocket-protocol") ?? "";
   if (offered.split(",").some((part) => part.trim() === "hb-auth")) {
-    headers["Sec-WebSocket-Protocol"] = "hb-auth";
+    headers.set("Sec-WebSocket-Protocol", "hb-auth");
   }
   startEventChannel();
-  const ok = server.upgrade(request, { data: { groupId: actor.groupId }, headers });
+  const options = headers.has("Sec-WebSocket-Protocol")
+    ? { data: { groupId: actor.groupId }, headers }
+    : { data: { groupId: actor.groupId } };
+  const ok = server.upgrade(request, options);
   if (!ok) return jsonError(400, "websocket upgrade failed");
   return "upgraded";
 }

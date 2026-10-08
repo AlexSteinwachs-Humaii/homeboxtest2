@@ -83,6 +83,8 @@ describe("websocket invalidation", () => {
     expect(anonymous.status).toBe(401);
     const upgradeDenied = await websocketOpened(port, undefined);
     expect(upgradeDenied).toBe(false);
+    const cookieOnly = await websocketOpened(port, sessionA.raw);
+    expect(cookieOnly).toBe(true);
 
     const plain = await fetch(`http://127.0.0.1:${port}/api/v1/ws/events`, {
       headers: { cookie: `hb.auth.token=${sessionA.raw}` },

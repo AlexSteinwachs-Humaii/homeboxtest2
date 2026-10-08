@@ -134,9 +134,9 @@ export const TOOLS: ToolDefinition[] = [
   {
     id: "tags",
     title: "Tags",
-    summary: "The tag list from the previous website.",
-    implemented: false,
-    endpoints: [],
+    summary: "Create and edit tags in this collection.",
+    implemented: true,
+    endpoints: ["/api/v1/tags"],
   },
 ];
 
@@ -206,9 +206,10 @@ export function resolveWebPath(input: string): ResolvedRoute {
   const template = /^\/template\/([^/]+)$/.exec(path);
   if (template) return { kind: "tool", id: "templates", focusId: template[1] };
 
-  if (/^\/label\/[^/]+$/.test(path) || /^\/tag\/[^/]+$/.test(path)) {
-    return { kind: "gap", title: "Tags", path };
-  }
+  const tag = /^\/tag\/([^/]+)$/.exec(path);
+  if (tag) return { kind: "tool", id: "tags", focusId: tag[1] };
+  const label = /^\/label\/([^/]+)$/.exec(path);
+  if (label) return { kind: "tool", id: "labels", focusId: label[1] };
 
   const asset = /^\/a\/([^/]+)$/.exec(path);
   if (asset) return { kind: "tool", id: "labels", focusId: asset[1] };

@@ -11,10 +11,20 @@ type Props = {
   groupId: string;
   locations: EntitySummary[];
   loading: boolean;
+  refreshKey?: number;
   onOpenItem: (id: string) => void;
   onOpenLocation: (id: string) => void;
   onOpenTags: () => void;
 };
+
+function formatMoney(amount: number, currency: string): string {
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : "USD";
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: code }).format(amount);
+  } catch {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+  }
+}
 
 const EMPTY_STATS: GroupStatistics = { totalItems: 0, totalLocations: 0, totalTags: 0, totalItemPrice: 0 };
 
@@ -23,6 +33,7 @@ export function WebHome(props: Props) {
   const [stats, setStats] = useState<GroupStatistics>(EMPTY_STATS);
   const [recent, setRecent] = useState<EntitySummary[]>([]);
   const [tags, setTags] = useState<TagChip[]>([]);
+  const [currency, setCurrency] = useState("USD");
 
   useEffect(() => {
     let cancelled = false;
@@ -30,23 +41,25 @@ export function WebHome(props: Props) {
     setRecent([]);
     setTags([]);
     void (async () => {
-      const [statistics, items, tagList] = await Promise.all([
+      const [statistics, items, tagList, collection] = await Promise.all([
         props.client.groupStatistics(),
         props.client.recentItems(),
         props.client.listTags(),
+        props.client.getCollection(),
       ]);
       if (cancelled) return;
       if (statistics.ok) setStats(statistics.data);
       if (items.ok) setRecent(items.data);
       if (tagList.ok) setTags(tagList.data.filter((tag) => tag.name.trim() !== ""));
+      if (collection.ok && collection.data.currency.trim()) setCurrency(collection.data.currency.trim().toUpperCase());
     })();
     return () => {
       cancelled = true;
     };
-  }, [props.client, props.groupId]);
+  }, [props.client, props.groupId, props.refreshKey]);
 
   const parents = props.locations.filter((location) => !location.parentId);
-  const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(stats.totalItemPrice);
+  const money = formatMoney(stats.totalItemPrice, currency);
 
   return (
     <ScrollView contentContainerStyle={styles.page}>

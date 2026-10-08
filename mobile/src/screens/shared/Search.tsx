@@ -48,7 +48,7 @@ export function Search(props: Props) {
 
 const styles = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12 },
-  searchRowHeader: { marginHorizontal: 0, marginTop: 0, width: 420, maxWidth: "100%", justifyContent: "flex-end" },
+  searchRowHeader: { marginHorizontal: 0, marginTop: 0, flex: 1, width: "100%", maxWidth: 420, minWidth: 0, flexShrink: 1, justifyContent: "flex-end" },
   searchInput: {
     flex: 1,
     borderWidth: 1,

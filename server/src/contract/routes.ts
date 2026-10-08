@@ -30,6 +30,8 @@ import { labelPng, qrJpeg } from "./images.ts";
 import { queryEntityList } from "./list.ts";
 import { validateNotifierUrl } from "./notifier.ts";
 import { presentEntity, presentSummary, presentTag } from "./present.ts";
+import { replaceEntityForGroup } from "./writes.ts";
+import { sendNotifierMessage } from "./notify.ts";
 
 type App = {
   get: Function;
@@ -508,10 +510,15 @@ export function mountContractRoutes(app: App, db: Database, options: ContractOpt
     const actor = actorOr(c, db);
     if (actor instanceof Response) return actor;
     const body = await readJson(c);
+    const url = String(body.url ?? "");
     try {
-      await validateNotifierUrl(String(body.url ?? ""));
+      await sendNotifierMessage(url, "Test message from Homebox");
     } catch (err) {
-      return jsonError(400, err instanceof Error ? err.message : "invalid notifier URL");
+      const message = err instanceof Error ? err.message : "notifier delivery failed";
+      const status = /unsupported notifier scheme|missing a scheme|invalid notifier|blocked|failed to resolve|no hostname/i.test(message)
+        ? 400
+        : 502;
+      return jsonError(status, message);
     }
     return new Response(null, { status: 200 });
   });
@@ -838,52 +845,15 @@ async function updateEntity(c: Context, db: Database): Promise<Response> {
   const actor = actorOr(c, db);
   if (actor instanceof Response) return actor;
   const id = c.req.param("id");
-  if (!getEntityForGroup(db, actor.groupId, id)) return jsonError(404, "Not Found");
   const body = await readJson(c);
-  const [bytes, text] = idPair(id);
-  db.run(
-    `UPDATE entities SET name = ?, description = ?, notes = ?, quantity = ?, insured = ?, archived = ?,
-       lifetime_warranty = ?, manufacturer = ?, model_number = ?, serial_number = ?,
-       purchase_price = ?, sold_price = ?, purchase_from = ?, purchase_date = ?, warranty_expires = ?,
-       warranty_details = ?, sold_date = ?, sold_to = ?, sold_notes = ?, sync_child_entity_locations = ?,
-       entity_type_entities = COALESCE(?, entity_type_entities), entity_children = ?, updated_at = ?
-     WHERE id = ? OR id = ?`,
-    [
-      String(body.name ?? ""),
-      String(body.description ?? ""),
-      String(body.notes ?? ""),
-      Number(body.quantity ?? 1),
-      body.insured ? 1 : 0,
-      body.archived ? 1 : 0,
-      body.lifetimeWarranty ? 1 : 0,
-      body.manufacturer ?? null,
-      body.modelNumber ?? null,
-      body.serialNumber ?? null,
-      Number(body.purchasePrice ?? 0),
-      Number(body.soldPrice ?? 0),
-      body.purchaseFrom ?? null,
-      body.purchaseDate || null,
-      body.warrantyExpires || null,
-      body.warrantyDetails ?? null,
-      body.soldDate || null,
-      body.soldTo ?? null,
-      body.soldNotes ?? null,
-      body.syncChildEntityLocations ? 1 : 0,
-      typeof body.entityTypeId === "string" ? uuidToBytes(body.entityTypeId) : null,
-      typeof body.parentId === "string" && body.parentId ? uuidToBytes(body.parentId) : null,
-      sqliteNow(),
-      bytes,
-      text,
-    ],
-  );
-  if (Array.isArray(body.tagIds)) {
-    db.run(`DELETE FROM tag_entities WHERE entity_id = ? OR entity_id = ?`, [bytes, text]);
-    for (const tagId of body.tagIds) {
-      if (typeof tagId === "string") db.run(`INSERT INTO tag_entities (tag_id, entity_id) VALUES (?, ?)`, [uuidToBytes(tagId), uuidToBytes(id)]);
-    }
+  try {
+    replaceEntityForGroup(db, actor.groupId, id, body);
+  } catch (err) {
+    return fromError(err);
   }
-  publishEntityMutation(actor.groupId);
-  return Response.json(presentEntity(db, actor.groupId, id));
+  const row = presentEntity(db, actor.groupId, id);
+  if (!row) return jsonError(404, "Not Found");
+  return Response.json(row);
 }
 
 async function duplicateEntity(c: Context, db: Database): Promise<Response> {
