@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { defaultWebServerUrl } from "../api/client";
 import { secureSessionStore } from "../session/secure";
 import { restoreSession, signIn, signOut, type Account, type StoredSession } from "../session/session";
 import { InventoryApp } from "./InventoryApp";
@@ -28,7 +29,12 @@ export function SessionGate() {
       setPhase({ kind: "offline", serverUrl: result.serverUrl, message: result.message, busy: false });
       return;
     }
-    setPhase({ kind: "sign-in", serverUrl: result.serverUrl ?? "", error: result.message ?? null, busy: false });
+    setPhase({
+      kind: "sign-in",
+      serverUrl: result.serverUrl || defaultWebServerUrl(),
+      error: result.message ?? null,
+      busy: false,
+    });
   }, []);
 
   useEffect(() => {

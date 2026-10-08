@@ -87,6 +87,8 @@ pnpm exec expo start --web
 
 `app/index.web.tsx` and `app/index.tsx` both import item list, item detail, item edit, locations, search, photo attach, and maintenance from `src/screens/inventory-ui`. The web build renders those with react-native-web. The camera scanner and secure storage are the only platform-specific files (`ScanScreen.web.tsx`, `session/secure.web.ts`).
 
+The production container serves `pnpm run export:web` (`expo export --platform web`) from the Bun process on port 7745. That export is static files under `/app/web`. It does not include the Nuxt app, and the browser does not open `homebox.db`. Inventory calls go to same-origin `/api/v1` on the Bun server (`EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same` is set only for that export). There are no Expo Router API routes.
+
 ## Tests
 
 ```bash

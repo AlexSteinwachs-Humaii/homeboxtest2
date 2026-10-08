@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { authorizationHeader, HomeboxClient, normalizeServerUrl, readUser, ServerUrlError } from "./client";
+import {
+  authorizationHeader,
+  defaultWebServerUrl,
+  HomeboxClient,
+  normalizeServerUrl,
+  readUser,
+  resolveClientServerUrl,
+  ServerUrlError,
+} from "./client";
 
 const USER = {
   id: "user-1",
@@ -32,6 +40,34 @@ test("normalizeServerUrl rejects missing, credential, and non-http addresses", (
   assert.throws(() => normalizeServerUrl("   "), ServerUrlError);
   assert.throws(() => normalizeServerUrl("ftp://files.example.com"), ServerUrlError);
   assert.throws(() => normalizeServerUrl("http://ada:secret@192.168.1.20:7745"), ServerUrlError);
+});
+
+test("the web export uses the page origin and /api/v1, not an Expo API route or a local database", async () => {
+  const previous = process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN;
+  process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN = "same";
+  const scope = globalThis as { location?: { origin?: string } };
+  const prior = scope.location;
+  scope.location = { origin: "http://127.0.0.1:7745" };
+  try {
+    assert.equal(defaultWebServerUrl(), "http://127.0.0.1:7745");
+    assert.equal(resolveClientServerUrl(""), "http://127.0.0.1:7745");
+    assert.equal(resolveClientServerUrl("http://192.168.1.20:7745"), "http://192.168.1.20:7745");
+    const calls: string[] = [];
+    const client = new HomeboxClient(resolveClientServerUrl(""), "", async (url) => {
+      calls.push(url);
+      return json(200, { token: "Bearer fresh", attachmentToken: "attach", expiresAt: "2026-11-01T00:00:00.000Z" });
+    });
+    await client.login("ada@example.com", "correct-horse", true);
+    assert.equal(calls[0], "http://127.0.0.1:7745/api/v1/users/login");
+    assert.equal(calls[0]?.includes("/api/v1/"), true);
+    assert.equal(calls[0]?.includes("homebox.db"), false);
+    assert.equal(/\/api\/(?!v1)/.test(calls[0] ?? ""), false);
+  } finally {
+    if (prior === undefined) delete scope.location;
+    else scope.location = prior;
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN;
+    else process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN = previous;
+  }
 });
 
 test("authorizationHeader sends the login token as Bearer and does not double-prefix it", () => {

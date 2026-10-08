@@ -22,4 +22,6 @@
 **/secrets.dev.yaml
 **/values.dev.yaml
 README.md
+# Production image serves the Expo web export. The Nuxt app is not copied in.
+frontend
 !Dockerfile.rootless

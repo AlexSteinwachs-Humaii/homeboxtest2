@@ -1,39 +1,39 @@
-# Node dependencies stage
-FROM public.ecr.aws/docker/library/node:22-alpine AS frontend-dependencies
+# Expo web export. The Nuxt app is not copied into this image.
+FROM public.ecr.aws/docker/library/node:22-alpine AS web-dependencies
 WORKDIR /app
 
-# Install pnpm 10 (latest stable, works reliably in Alpine)
 RUN npm install -g pnpm@10
 
-# Copy package.json and lockfile to leverage caching
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY mobile/package.json mobile/pnpm-lock.yaml mobile/.npmrc ./
 RUN pnpm install --frozen-lockfile
 
-# Build Nuxt (frontend) stage
-FROM public.ecr.aws/docker/library/node:22-alpine AS frontend-builder
+FROM public.ecr.aws/docker/library/node:22-alpine AS web-builder
 WORKDIR /app
 
-# Install pnpm 10 (latest stable)
 RUN npm install -g pnpm@10
 
-# Copy over source files and node_modules from dependencies stage
-COPY frontend .
-COPY --from=frontend-dependencies /app/node_modules ./node_modules
-RUN pnpm build
+COPY mobile .
+COPY --from=web-dependencies /app/node_modules ./node_modules
+ENV CI=1
+ENV EXPO_NO_TELEMETRY=1
+# Same-origin /api/v1 on the Bun server. Inlined into the web bundle only.
+ENV EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same
+RUN pnpm run export:web
 
-# Bun server dependencies. The production image does not compile the Go API.
+# Bun server dependencies. The production image does not compile a Go API.
 FROM oven/bun:1-alpine AS server-dependencies
 WORKDIR /app
 COPY server/package.json server/bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-# Production stage — Bun runtime only. No Go toolchain and no compiled API binary.
+# Production stage — Expo web export plus the Bun server.
 FROM oven/bun:1-alpine
 ENV HBOX_MODE=production
 ENV HBOX_STORAGE_CONN_STRING=file:///?no_tmp_dir=true
 ENV HBOX_STORAGE_PREFIX_PATH=data
 ENV HBOX_DATABASE_SQLITE_PATH=/data/homebox.db?_pragma=busy_timeout=2000&_pragma=journal_mode=WAL&_fk=1&_time_format=sqlite
 ENV HBOX_MIGRATIONS_DIR=/app/migrations/sqlite3
+ENV HBOX_STATIC_DIR=/app/web
 
 USER root
 RUN apk --no-cache add ca-certificates && mkdir -p /data /app
@@ -45,8 +45,7 @@ COPY server/src ./src
 COPY server/healthcheck.ts ./healthcheck.ts
 COPY backend/internal/data/migrations/sqlite3 ./migrations/sqlite3
 COPY backend/internal/core/currencies/currencies.json ./currencies.json
-# Already-built Vue assets. The Vue source is not rewritten.
-COPY --from=frontend-builder /app/.output/public ./frontend/.output/public
+COPY --from=web-builder /app/dist ./web
 
 LABEL Name=homebox Version=0.0.1
 LABEL org.opencontainers.image.source="https://github.com/sysadminsmedia/homebox"

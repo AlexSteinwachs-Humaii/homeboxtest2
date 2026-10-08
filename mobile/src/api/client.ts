@@ -50,6 +50,26 @@ const MAINTENANCE_PATH = "/api/v1/maintenance";
 
 const URL_SUFFIXES = ["/api/v1/users/login", "/api/v1"];
 
+// The production web export sets this so inventory calls stay on the page
+// origin (`/api/v1` on the Bun server). The phone build leaves it unset and
+// still requires the address the person types. It is not an Expo API route.
+export function defaultWebServerUrl(): string {
+  if (process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN !== "same") return "";
+  const origin = (globalThis as { location?: { origin?: string } }).location?.origin;
+  if (!origin || origin === "null") return "";
+  return origin;
+}
+
+export function resolveClientServerUrl(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    const origin = defaultWebServerUrl();
+    if (origin) return origin;
+    if (process.env.EXPO_PUBLIC_HOMEBOX_API_ORIGIN === "same") return "";
+  }
+  return normalizeServerUrl(trimmed);
+}
+
 export function normalizeServerUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) {

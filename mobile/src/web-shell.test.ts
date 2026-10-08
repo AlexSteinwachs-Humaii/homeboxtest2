@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(mobileRoot, "..");
+
+test("the Expo web shell is not the Nuxt app and does not open the inventory database", async () => {
+  const shell = await readFile(path.join(mobileRoot, "public/index.html"), "utf8");
+  assert.match(shell, /name="homebox-client" content="expo-web"/);
+  assert.match(shell, /id="expo-reset"/);
+  assert.match(shell, /id="root"/);
+  assert.equal(shell.includes("__NUXT__"), false);
+  assert.equal(shell.toLowerCase().includes("nuxt"), false);
+  assert.equal(shell.includes("homebox.db"), false);
+
+  const pkg = JSON.parse(await readFile(path.join(mobileRoot, "package.json"), "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+  assert.match(pkg.scripts?.["export:web"] ?? "", /expo export --platform web/);
+
+  const appFiles = await walk(path.join(mobileRoot, "app"));
+  assert.equal(
+    appFiles.some((file) => file.includes(`${path.sep}api${path.sep}`) || path.basename(file).includes("+api.")),
+    false,
+    "inventory mutations must not go through an Expo API route",
+  );
+});
+
+test("production images serve the Expo web export from Bun and omit the Nuxt output", async () => {
+  for (const name of ["Dockerfile", "Dockerfile.rootless", "Dockerfile.hardened"]) {
+    const text = await readFile(path.join(repoRoot, name), "utf8");
+    assert.match(text, /pnpm run export:web/);
+    assert.match(text, /HBOX_STATIC_DIR=\/app\/web/);
+    assert.match(text, /EXPOSE 7745/);
+    assert.match(text, /VOLUME \[ "\/data" \]/);
+    assert.equal(text.includes("frontend"), false, `${name} must not copy the Nuxt app`);
+    assert.equal(text.includes(".output"), false, `${name} must not copy frontend/.output`);
+    assert.equal(text.toLowerCase().includes("golang"), false);
+    assert.equal(text.includes("go build"), false);
+  }
+  const ignore = await readFile(path.join(repoRoot, ".dockerignore"), "utf8");
+  assert.match(ignore, /^frontend$/m);
+});
+
+async function walk(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const found: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...(await walk(full)));
+    else found.push(full);
+  }
+  return found;
+}

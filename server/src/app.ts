@@ -115,7 +115,7 @@ function attachmentOptions(config: ServerConfig): AttachmentRouteOptions {
 function serveAsset(urlPath: string, config: ServerConfig, env: Record<string, string | undefined>): Response {
   const asset = readStatic(config.staticDir, urlPath, env);
   if (asset.kind === "missing") {
-    return new Response("frontend assets not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+    return new Response("web assets not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   }
   const headers: Record<string, string> = { "content-type": asset.contentType };
   if (asset.cacheControl) headers["cache-control"] = asset.cacheControl;

@@ -9,7 +9,7 @@ Measured 2026-10-08 on this branch after a cold start of `bun src/index.ts` with
 
 The story does not require this to be under 50MB. The Go image was not rebuilt for a side-by-side RSS comparison in this sandbox.
 
-`Dockerfile`, `Dockerfile.rootless`, and `Dockerfile.hardened` have no `golang` stage and do not invoke `go build`. One Bun process serves `frontend/.output/public` and `/api/v1`.
+`Dockerfile`, `Dockerfile.rootless`, and `Dockerfile.hardened` have no `golang` stage and do not invoke `go build`. One Bun process serves the Expo web export at `/app/web` and `/api/v1`.
 
 ## Explicit gaps (not in the required Vue contract set)
 

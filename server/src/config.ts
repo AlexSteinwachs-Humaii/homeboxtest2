@@ -7,6 +7,9 @@ import { StartupError } from "./errors.ts";
 export const DEFAULT_SQLITE_PATH = "/data/homebox.db";
 export const DEFAULT_PORT = 7745;
 export const DEFAULT_HOST = "0.0.0.0";
+// Directory name of the Expo web export inside the image (WORKDIR /app).
+// Dockerfiles set HBOX_STATIC_DIR=/app/web. This is not the Nuxt output.
+export const DEFAULT_STATIC_DIR = "web";
 
 export type OidcConfig = {
   enabled: boolean;
@@ -128,7 +131,7 @@ export function loadConfig(env: Env, args: string[] = [], migrationsDir?: string
     sqlitePath,
     host: env.HBOX_WEB_HOST || file.host || DEFAULT_HOST,
     port,
-    staticDir: staticDir ?? env.HBOX_STATIC_DIR ?? "frontend/.output/public",
+    staticDir: staticDir ?? env.HBOX_STATIC_DIR ?? DEFAULT_STATIC_DIR,
     migrationsDir: migrationsDir ?? env.HBOX_MIGRATIONS_DIR ?? "",
     demo: parseBool(env.HBOX_DEMO, file.demo ?? false),
     allowRegistration: parseBool(env.HBOX_OPTIONS_ALLOW_REGISTRATION, file.allowRegistration ?? true),

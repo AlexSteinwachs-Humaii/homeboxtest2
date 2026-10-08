@@ -3,8 +3,8 @@ import { extname, resolve, sep } from "node:path";
 
 const HTML_HEAD = /<head(?:\s[^>]*)?>/i;
 
-// Same injection the Go static handler applies so the already-built Vue shell
-// still sees deployment context. The Vue source is not rewritten.
+// Inject deployment context into the Expo web shell's <head>. The Nuxt app is
+// not served.
 export function injectLarineContext(html: string, env: Record<string, string | undefined>): string {
   const parts: string[] = [];
   for (const [name, id] of [
@@ -99,8 +99,14 @@ function contentTypeFor(extension: string): string {
       return "image/jpeg";
     case ".webp":
       return "image/webp";
+    case ".woff":
+      return "font/woff";
     case ".woff2":
       return "font/woff2";
+    case ".ttf":
+      return "font/ttf";
+    case ".otf":
+      return "font/otf";
     case ".ico":
       return "image/x-icon";
     case ".txt":

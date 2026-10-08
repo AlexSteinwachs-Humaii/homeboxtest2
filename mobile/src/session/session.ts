@@ -1,7 +1,7 @@
 import {
   authorizationHeader,
   HomeboxClient,
-  normalizeServerUrl,
+  resolveClientServerUrl,
   ServerUrlError,
   type FetchLike,
   type UserOut,
@@ -103,7 +103,7 @@ export async function signIn(deps: SessionDeps, input: SignInInput): Promise<Sig
 
   let serverUrl: string;
   try {
-    serverUrl = normalizeServerUrl(input.serverUrl);
+    serverUrl = resolveClientServerUrl(input.serverUrl);
   } catch (err) {
     if (err instanceof ServerUrlError) return { ok: false, message: err.message };
     return { ok: false, message: "That server address is not a valid URL." };
