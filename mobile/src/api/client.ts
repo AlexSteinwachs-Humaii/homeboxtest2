@@ -280,6 +280,62 @@ export type EntityCreateInput = {
   tagIds?: string[];
 };
 
+export type BinaryFile = {
+  bytes: Uint8Array;
+  contentType: string;
+  filename: string;
+};
+
+export type ApiKeySummary = {
+  id: string;
+  name: string;
+  expiresAt: string;
+};
+
+export type CollectionSettings = {
+  id: string;
+  name: string;
+  currency: string;
+};
+
+export type MemberSummary = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
+export type InvitationSummary = {
+  id: string;
+  expiresAt: string;
+  uses: number;
+  token: string;
+};
+
+export type NotifierSummary = {
+  id: string;
+  name: string;
+  url: string;
+  isActive: boolean;
+};
+
+export type TemplateSummary = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type TemplateDetail = TemplateSummary & {
+  raw: Record<string, unknown>;
+};
+
+export type CollectionExport = {
+  id: string;
+  status: string;
+  progress: number;
+  sizeBytes: number;
+};
+
 export class HomeboxClient {
   readonly serverUrl: string;
   private token: string;
@@ -616,6 +672,364 @@ export class HomeboxClient {
     return { ok: true, status: response.status, data: readAttachments(data) };
   }
 
+  updateProfile(name: string, email: string): Promise<ApiResult<{ name: string; email: string }>> {
+    return this.request("/api/v1/users/self", {
+      method: "PUT",
+      auth: true,
+      body: { name: name.trim(), email: email.trim() },
+      parse: (data) => {
+        if (!isRecord(data) || !isRecord(data.item)) return null;
+        return { name: text(data.item.name), email: text(data.item.email) };
+      },
+      failure: "The server did not save this profile.",
+      malformed: "The server did not confirm this profile.",
+    });
+  }
+
+  changePassword(current: string, next: string): Promise<ApiResult<{ changed: true }>> {
+    return this.request("/api/v1/users/self/change-password", {
+      method: "PUT",
+      auth: true,
+      body: { current, new: next },
+      parse: () => ({ changed: true }),
+      allowEmpty: true,
+      failure: "The server did not change this password.",
+      malformed: "The server did not confirm the password change.",
+    });
+  }
+
+  deleteProfile(): Promise<ApiResult<{ deleted: true }>> {
+    return this.request("/api/v1/users/self", {
+      method: "DELETE",
+      auth: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not delete this account.",
+      malformed: "The server did not confirm the deletion.",
+    });
+  }
+
+  listApiKeys(): Promise<ApiResult<ApiKeySummary[]>> {
+    return this.request("/api/v1/users/self/api-keys", {
+      method: "GET",
+      auth: true,
+      parse: readApiKeys,
+      failure: "The server did not return API keys.",
+      malformed: "The server did not return API keys.",
+    });
+  }
+
+  createApiKey(name: string): Promise<ApiResult<ApiKeySummary & { token: string }>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a name for this API key." });
+    return this.request("/api/v1/users/self/api-keys", {
+      method: "POST",
+      auth: true,
+      body: { name: trimmed },
+      parse: (data) => {
+        const key = readApiKey(data);
+        if (!key || !isRecord(data) || typeof data.token !== "string") return null;
+        return { ...key, token: data.token };
+      },
+      failure: "The server did not create this API key.",
+      malformed: "The server did not return the new API key.",
+    });
+  }
+
+  deleteApiKey(id: string): Promise<ApiResult<{ deleted: true }>> {
+    return this.request(`/api/v1/users/self/api-keys/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      auth: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not delete this API key.",
+      malformed: "The server did not confirm the deletion.",
+    });
+  }
+
+  getCollection(): Promise<ApiResult<CollectionSettings>> {
+    return this.request("/api/v1/groups", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readCollection,
+      failure: "The server did not return this collection.",
+      malformed: "The server did not return this collection.",
+    });
+  }
+
+  updateCollection(name: string, currency: string): Promise<ApiResult<CollectionSettings>> {
+    return this.request("/api/v1/groups", {
+      method: "PUT",
+      auth: true,
+      tenant: true,
+      body: { name: name.trim(), currency: currency.trim() },
+      parse: readCollection,
+      failure: "The server did not save this collection.",
+      malformed: "The server did not confirm this collection.",
+    });
+  }
+
+  listCurrencies(): Promise<ApiResult<string[]>> {
+    return this.request("/api/v1/currencies", {
+      method: "GET",
+      auth: false,
+      parse: (data) => {
+        if (!Array.isArray(data)) return null;
+        return data.map((row) => (isRecord(row) ? text(row.code) : "")).filter((code) => code !== "");
+      },
+      failure: "The server did not return currencies.",
+      malformed: "The server did not return currencies.",
+    });
+  }
+
+  listMembers(): Promise<ApiResult<MemberSummary[]>> {
+    return this.request("/api/v1/groups/members", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readMembers,
+      failure: "The server did not return members.",
+      malformed: "The server did not return members.",
+    });
+  }
+
+  removeMember(userId: string): Promise<ApiResult<{ removed: true }>> {
+    return this.request(`/api/v1/groups/members/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      auth: true,
+      tenant: true,
+      parse: () => ({ removed: true }),
+      allowEmpty: true,
+      failure: "The server did not remove this member.",
+      malformed: "The server did not confirm the removal.",
+    });
+  }
+
+  listInvitations(): Promise<ApiResult<InvitationSummary[]>> {
+    return this.request("/api/v1/groups/invitations", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readInvitations,
+      failure: "The server did not return invites.",
+      malformed: "The server did not return invites.",
+    });
+  }
+
+  createInvitation(uses = 1): Promise<ApiResult<InvitationSummary>> {
+    return this.request("/api/v1/groups/invitations", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: { uses },
+      parse: readInvitation,
+      failure: "The server did not create this invite.",
+      malformed: "The server did not return the invite.",
+    });
+  }
+
+  deleteInvitation(id: string): Promise<ApiResult<{ deleted: true }>> {
+    return this.request(`/api/v1/groups/invitations/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      auth: true,
+      tenant: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not revoke this invite.",
+      malformed: "The server did not confirm the revocation.",
+    });
+  }
+
+  listNotifiers(): Promise<ApiResult<NotifierSummary[]>> {
+    return this.request("/api/v1/notifiers", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readNotifiers,
+      failure: "The server did not return notifiers.",
+      malformed: "The server did not return notifiers.",
+    });
+  }
+
+  createNotifier(name: string, url: string): Promise<ApiResult<NotifierSummary>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a name for this notifier." });
+    if (!url.trim()) return Promise.resolve({ ok: false, status: 0, error: "Enter a URL for this notifier." });
+    return this.request("/api/v1/notifiers", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: { name: trimmed, url: url.trim(), isActive: true },
+      parse: readNotifier,
+      failure: "The server did not create this notifier.",
+      malformed: "The server did not return the notifier.",
+    });
+  }
+
+  deleteNotifier(id: string): Promise<ApiResult<{ deleted: true }>> {
+    return this.request(`/api/v1/notifiers/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      auth: true,
+      tenant: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not delete this notifier.",
+      malformed: "The server did not confirm the deletion.",
+    });
+  }
+
+  createEntityType(name: string, isLocation: boolean): Promise<ApiResult<EntityTypeSummary>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a name for this type." });
+    return this.request("/api/v1/entity-types", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: { name: trimmed, isLocation },
+      parse: (data) => {
+        if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+        return { id: data.id, name: text(data.name) || trimmed, isLocation: data.isLocation === true };
+      },
+      failure: "The server did not create this entity type.",
+      malformed: "The server did not return the entity type.",
+    });
+  }
+
+  listTemplates(): Promise<ApiResult<TemplateSummary[]>> {
+    return this.request("/api/v1/templates", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readTemplates,
+      failure: "The server did not return templates.",
+      malformed: "The server did not return templates.",
+    });
+  }
+
+  getTemplate(id: string): Promise<ApiResult<TemplateDetail>> {
+    return this.request(`/api/v1/templates/${encodeURIComponent(id)}`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readTemplateDetail,
+      failure: "The server did not return this template.",
+      malformed: "The server did not return this template.",
+    });
+  }
+
+  createTemplate(name: string): Promise<ApiResult<{ id: string }>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a name for this template." });
+    return this.request("/api/v1/templates", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: { name: trimmed },
+      parse: (data) => {
+        if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+        return { id: data.id };
+      },
+      failure: "The server did not create this template.",
+      malformed: "The server did not return the template.",
+    });
+  }
+
+  saveTemplate(id: string, body: Record<string, unknown>): Promise<ApiResult<TemplateDetail>> {
+    return this.request(`/api/v1/templates/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      auth: true,
+      tenant: true,
+      body,
+      parse: readTemplateDetail,
+      failure: "The server did not save this template.",
+      malformed: "The server did not confirm this template.",
+    });
+  }
+
+  listCollectionExports(): Promise<ApiResult<CollectionExport[]>> {
+    return this.request("/api/v1/group/exports", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: (data) => {
+        if (!isRecord(data) || !Array.isArray(data.items)) return null;
+        return data.items.map(readExport).filter((row): row is CollectionExport => row !== null);
+      },
+      failure: "The server did not return collection exports.",
+      malformed: "The server did not return collection exports.",
+    });
+  }
+
+  startCollectionExport(): Promise<ApiResult<CollectionExport>> {
+    return this.request("/api/v1/group/exports", {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      parse: readExport,
+      failure: "The server did not start this export.",
+      malformed: "The server did not return the export.",
+    });
+  }
+
+  deleteCollectionExport(id: string): Promise<ApiResult<{ deleted: true }>> {
+    return this.request(`/api/v1/group/exports/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      auth: true,
+      tenant: true,
+      parse: () => ({ deleted: true }),
+      allowEmpty: true,
+      failure: "The server did not delete this export.",
+      malformed: "The server did not confirm the deletion.",
+    });
+  }
+
+  runMaintenanceAction(path: string, body?: Record<string, unknown>): Promise<ApiResult<{ completed: number }>> {
+    return this.request(path, {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: body ?? {},
+      parse: (data) => {
+        if (!isRecord(data) || typeof data.completed !== "number") return null;
+        return { completed: data.completed };
+      },
+      failure: "The server did not run this action.",
+      malformed: "The server did not confirm this action.",
+    });
+  }
+
+  labelImage(kind: "entity" | "location" | "asset", id: string): Promise<ApiResult<BinaryFile>> {
+    return this.getBytes(`/api/v1/labelmaker/${kind}/${encodeURIComponent(id)}`, "label.png");
+  }
+
+  // The server decodes the query once more than the URL parser, matching the Vue client.
+  qrImage(data: string): Promise<ApiResult<BinaryFile>> {
+    const params = new URLSearchParams();
+    params.set("data", encodeURIComponent(data));
+    return this.getBytes(`/api/v1/qrcode?${params.toString()}`, "qrcode.jpg");
+  }
+
+  exportEntitiesCsv(): Promise<ApiResult<BinaryFile>> {
+    return this.getBytes("/api/v1/entities/export", "homebox-entities.csv");
+  }
+
+  billOfMaterials(): Promise<ApiResult<BinaryFile>> {
+    return this.getBytes("/api/v1/reporting/bill-of-materials", "bill-of-materials.csv");
+  }
+
+  downloadCollectionExport(id: string): Promise<ApiResult<BinaryFile>> {
+    return this.getBytes(`/api/v1/group/exports/${encodeURIComponent(id)}/download`, `homebox-export-${id}.zip`);
+  }
+
+  importEntitiesCsv(filename: string, bytes: Uint8Array): Promise<ApiResult<{ imported: true }>> {
+    return this.postFile("/api/v1/entities/import", "csv", filename || "import.csv", "text/csv", bytes, "The server did not import this CSV.");
+  }
+
+  importCollectionZip(filename: string, bytes: Uint8Array): Promise<ApiResult<{ imported: true }>> {
+    return this.postFile("/api/v1/group/import", "file", filename || "homebox-export.zip", "application/zip", bytes, "The server did not import this collection.");
+  }
+
   // Image views cannot set Authorization. The login attachment token is the
   // access_token query the server already accepts for this route.
   attachmentUrl(entityId: string, attachmentId: string, attachmentToken: string): string {
@@ -630,7 +1044,7 @@ export class HomeboxClient {
   private async request<T>(
     path: string,
     options: {
-      method: "GET" | "POST" | "PUT" | "PATCH";
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
       auth: boolean;
       tenant?: boolean;
       body?: unknown;
@@ -694,10 +1108,162 @@ export class HomeboxClient {
     }
     return { ok: true, status: response.status, data: parsed };
   }
+
+  private async getBytes(path: string, fallbackName: string): Promise<ApiResult<BinaryFile>> {
+    const headers = this.sessionHeaders(true);
+    if (!headers) return headersMissing();
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.serverUrl}${path}`, {
+        method: "GET",
+        headers,
+        credentials: "omit",
+      });
+    } catch {
+      return { ok: false, status: 0, error: "Could not reach the server. Check the address and that HomeBox is running." };
+    }
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: await errorMessage(response, "The server did not return this file.") };
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() || "application/octet-stream";
+    return {
+      ok: true,
+      status: response.status,
+      data: {
+        bytes,
+        contentType,
+        filename: filenameFromHeader(response.headers.get("content-disposition"), fallbackName),
+      },
+    };
+  }
+
+  private async postFile(
+    path: string,
+    field: string,
+    filename: string,
+    mimeType: string,
+    bytes: Uint8Array,
+    failure: string,
+  ): Promise<ApiResult<{ imported: true }>> {
+    if (typeof File === "undefined") {
+      return { ok: false, status: 0, error: "This import uses the browser file control. Open the tool on the web client." };
+    }
+    const headers = this.sessionHeaders(true);
+    if (!headers) return headersMissing();
+    const form = new FormData();
+    form.append(field, new File([bytes as BlobPart], filename, { type: mimeType }));
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.serverUrl}${path}`, {
+        method: "POST",
+        headers,
+        body: form,
+        credentials: "omit",
+      });
+    } catch {
+      return { ok: false, status: 0, error: "Could not reach the server. Check the address and that HomeBox is running." };
+    }
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: await errorMessage(response, failure) };
+    }
+    return { ok: true, status: response.status, data: { imported: true } };
+  }
+
+  private sessionHeaders(tenant: boolean): Record<string, string> | null {
+    const authorization = authorizationHeader(this.token);
+    if (!authorization) return null;
+    const headers: Record<string, string> = { Accept: "*/*", Authorization: authorization };
+    if (tenant) {
+      if (!this.groupId) return null;
+      headers["X-Tenant"] = this.groupId;
+    }
+    return headers;
+  }
 }
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function headersMissing(): ApiFailure {
+  return { ok: false, status: 401, error: "Sign in and choose a collection before continuing." };
+}
+
+function filenameFromHeader(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain?.[1]?.trim() || fallback;
+}
+
+function readApiKey(data: unknown): ApiKeySummary | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return { id: data.id, name: text(data.name) || "API key", expiresAt: text(data.expiresAt) };
+}
+
+function readApiKeys(data: unknown): ApiKeySummary[] | null {
+  if (!Array.isArray(data)) return null;
+  return data.map(readApiKey).filter((row): row is ApiKeySummary => row !== null);
+}
+
+function readCollection(data: unknown): CollectionSettings | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return { id: data.id, name: text(data.name) || "Collection", currency: text(data.currency) || "USD" };
+}
+
+function readMembers(data: unknown): MemberSummary[] | null {
+  if (!Array.isArray(data)) return null;
+  const members: MemberSummary[] = [];
+  for (const row of data) {
+    if (!isRecord(row) || typeof row.id !== "string" || row.id === "") continue;
+    members.push({ id: row.id, name: text(row.name), email: text(row.email), role: text(row.role) || "member" });
+  }
+  return members;
+}
+
+function readInvitation(data: unknown): InvitationSummary | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return { id: data.id, expiresAt: text(data.expiresAt), uses: typeof data.uses === "number" ? data.uses : 0, token: text(data.token) };
+}
+
+function readInvitations(data: unknown): InvitationSummary[] | null {
+  if (!Array.isArray(data)) return null;
+  return data.map(readInvitation).filter((row): row is InvitationSummary => row !== null);
+}
+
+function readNotifier(data: unknown): NotifierSummary | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return { id: data.id, name: text(data.name) || "Notifier", url: text(data.url), isActive: data.isActive !== false };
+}
+
+function readNotifiers(data: unknown): NotifierSummary[] | null {
+  if (!Array.isArray(data)) return null;
+  return data.map(readNotifier).filter((row): row is NotifierSummary => row !== null);
+}
+
+function readTemplates(data: unknown): TemplateSummary[] | null {
+  if (!Array.isArray(data)) return null;
+  const templates: TemplateSummary[] = [];
+  for (const row of data) {
+    if (!isRecord(row) || typeof row.id !== "string" || row.id === "") continue;
+    templates.push({ id: row.id, name: text(row.name) || "Template", description: text(row.description) });
+  }
+  return templates;
+}
+
+function readTemplateDetail(data: unknown): TemplateDetail | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return { id: data.id, name: text(data.name) || "Template", description: text(data.description), raw: data };
+}
+
+function readExport(data: unknown): CollectionExport | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  return {
+    id: data.id,
+    status: text(data.status) || "unknown",
+    progress: typeof data.progress === "number" ? data.progress : 0,
+    sizeBytes: typeof data.sizeBytes === "number" ? data.sizeBytes : 0,
+  };
 }
 
 function readGroups(data: unknown): GroupSummary[] | null {

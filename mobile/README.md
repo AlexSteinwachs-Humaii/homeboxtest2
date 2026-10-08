@@ -89,6 +89,8 @@ pnpm exec expo start --web
 
 On the website, sign in against the Bun server (the address is the page origin when the export was built with `EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same`). The collection chips send `X-Tenant`, the same header the Vue collection selector used. New collection calls `POST /api/v1/groups` and then loads that collection's inventory. Search sends the query as typed. Attach a photo is a file input; the bytes still go to `POST /api/v1/entities/{id}/attachments`. Maintenance is scheduled on the item and marked complete from the shared maintenance screen.
 
+Labels, QR, CSV import/export, collection import/export, profile, collection settings, members, invites, notifiers, entity types, and templates open from Tools. Each one calls an existing `/api/v1` route on the Bun server. Tags, language, and theme stay named and say they are not in this release. A Vue address such as `/profile` or `/reports/label-generator` opens that tool; an unknown address names the page instead of a blank shell.
+
 The production container serves `pnpm run export:web` (`expo export --platform web`) from the Bun process on port 7745. That export is static files under `/app/web`. It does not include the Nuxt app, and the browser does not open `homebox.db`. Inventory calls go to same-origin `/api/v1` on the Bun server (`EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same` is set only for that export). There are no Expo Router API routes.
 
 ## Tests

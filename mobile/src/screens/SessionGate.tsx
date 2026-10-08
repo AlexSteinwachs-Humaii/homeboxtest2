@@ -15,7 +15,11 @@ type Phase =
 
 const store = secureSessionStore;
 
-export function SessionGate() {
+type Props = {
+  requestedPath?: string;
+};
+
+export function SessionGate({ requestedPath }: Props = {}) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
 
   const boot = useCallback(async () => {
@@ -71,7 +75,11 @@ export function SessionGate() {
         account={phase.account}
         session={phase.session}
         busy={phase.busy}
+        requestedPath={requestedPath}
         onSignOut={() => void leave(phase.session)}
+        onAccountChange={(account) =>
+          setPhase((current) => (current.kind === "account" ? { ...current, account: { ...current.account, ...account } } : current))
+        }
       />
     );
   }

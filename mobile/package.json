@@ -10,7 +10,7 @@
     "ios": "expo run:ios",
     "android:apk": "sh ./scripts/android-apk.sh",
     "export:web": "expo export --platform web --output-dir dist",
-    "test": "node --experimental-strip-types --import ./test/register.mjs --test src/api/client.test.ts src/session/session.test.ts src/session/collection.test.ts src/inventory/inventory.test.ts src/photos/photos.test.ts src/scan/lookup.test.ts src/scan/scan-lock.test.ts src/maintenance/maintenance.test.ts src/native/binary.test.ts src/inventory-boundary.test.ts src/screens/shared-screens.test.ts src/screens/web-tasks.test.ts src/web-shell.test.ts"
+    "test": "node --experimental-strip-types --import ./test/register.mjs --test src/api/client.test.ts src/session/session.test.ts src/session/collection.test.ts src/inventory/inventory.test.ts src/photos/photos.test.ts src/scan/lookup.test.ts src/scan/scan-lock.test.ts src/maintenance/maintenance.test.ts src/native/binary.test.ts src/inventory-boundary.test.ts src/screens/shared-screens.test.ts src/screens/web-tasks.test.ts src/tools/catalog.test.ts src/web-shell.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",

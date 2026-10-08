@@ -8,16 +8,20 @@ import { pickPhoto, takePhoto } from "../photos/picker";
 import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
 import { readPreferredCollection, writePreferredCollection } from "../session/collection";
 import type { Account, StoredSession } from "../session/session";
+import { resolveWebPath, type ToolId } from "../tools/catalog";
 import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
 import { ItemDetail, ItemEdit, Maintenance, type EditorValues, type ServerPhoto } from "./inventory-ui";
 import { ScanScreen } from "./ScanScreen";
+import { ToolsScreen } from "./ToolsScreen";
 
 type Props = {
   account: Account;
   session: StoredSession;
   busy: boolean;
+  requestedPath?: string;
   onSignOut: () => void;
+  onAccountChange?: (patch: { name: string; email: string }) => void;
 };
 
 type View =
@@ -28,19 +32,31 @@ type View =
   | { name: "edit-location"; parentId: string | null }
   | { name: "scan" }
   | { name: "maintenance" }
-  | { name: "account" };
+  | { name: "account" }
+  | { name: "tools"; toolId: string | null; focusId?: string; missingTitle?: string; missingPath?: string };
 
-export function InventoryApp({ account, session, busy, onSignOut }: Props) {
+function viewFromPath(path: string | undefined): View {
+  if (!path) return { name: "list", tab: "items" };
+  const route = resolveWebPath(path);
+  if (route.kind === "locations") return { name: "list", tab: "locations" };
+  if (route.kind === "maintenance") return { name: "maintenance" };
+  if (route.kind === "hub") return { name: "tools", toolId: null };
+  if (route.kind === "tool") return { name: "tools", toolId: route.id, focusId: route.focusId };
+  if (route.kind === "gap") return { name: "tools", toolId: null, missingTitle: route.title, missingPath: route.path };
+  return { name: "list", tab: "items" };
+}
+
+export function InventoryApp({ account, session, busy, requestedPath, onSignOut, onAccountChange }: Props) {
   const client = useMemo(() => new HomeboxClient(session.serverUrl, session.token), [session.serverUrl, session.token]);
+  const [groupId, setGroupId] = useState(() => readPreferredCollection() || account.defaultGroupId);
   const generation = useRef(0);
   const photoTicket = useRef(0);
-  const [groupId, setGroupId] = useState(() => readPreferredCollection() || account.defaultGroupId);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [schedulingMaintenance, setSchedulingMaintenance] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<InventorySnapshot | null>(null);
-  const [view, setView] = useState<View>({ name: "list", tab: "items" });
+  const [view, setView] = useState<View>(() => viewFromPath(requestedPath));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +79,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  client.setGroup(snapshot?.groupId ?? groupId);
 
   const reload = useCallback(
     async (preferred: string, clearFirst: boolean) => {
@@ -303,6 +320,29 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     void reload(snapshot.groupId, false);
   }
 
+  if (view.name === "tools") {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    return (
+      <ToolsScreen
+        client={client}
+        account={account}
+        items={snapshot?.items ?? []}
+        locations={snapshot?.locations ?? []}
+        toolId={view.toolId}
+        focusId={view.focusId}
+        missingTitle={view.missingTitle}
+        missingPath={view.missingPath}
+        busy={busy}
+        onBack={() => setView({ name: "list", tab: "items" })}
+        onOpenHub={() => setView({ name: "tools", toolId: null })}
+        onOpenTool={(id: ToolId) => setView({ name: "tools", toolId: id })}
+        onSignOut={onSignOut}
+        onProfileSaved={(patch) => onAccountChange?.(patch)}
+        onCollectionSaved={() => void reload(activeGroup, false)}
+      />
+    );
+  }
+
   if (view.name === "account") {
     return <AccountScreen account={account} busy={busy} onSignOut={onSignOut} onBack={() => setView({ name: "list", tab: "items" })} />;
   }
@@ -466,6 +506,10 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
         setMaintenanceFilter("due");
         setView({ name: "maintenance" });
         void refreshMaintenance(snapshot?.groupId ?? groupId);
+      }}
+      onTools={() => {
+        client.setGroup(snapshot?.groupId ?? groupId);
+        setView({ name: "tools", toolId: null });
       }}
       onSelectTab={(tab) => setView({ name: "list", tab })}
       onOpenItem={(id) => void openEntity(id, "item")}
