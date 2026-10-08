@@ -29,6 +29,29 @@ test("the Expo web shell is not the Nuxt app and does not open the inventory dat
   );
 });
 
+test("the browser chrome follows the original HomeBox website, not the phone list", async () => {
+  const shell = await readFile(path.join(mobileRoot, "src/screens/WebShell.tsx"), "utf8");
+  const theme = await readFile(path.join(mobileRoot, "src/theme.ts"), "utf8");
+  assert.match(shell, /Welcome,/);
+  assert.match(shell, /label: "Home"/);
+  assert.match(shell, /label: "Locations"/);
+  assert.match(shell, /label: "Search"/);
+  assert.match(shell, /label: "Maintenance"/);
+  assert.match(shell, /label: "Profile"/);
+  assert.match(shell, /Sign out/);
+  assert.match(shell, /accessibilityLabel="New item"/);
+  assert.match(theme, /canvas: "#cfcfcf"/);
+  assert.match(theme, /primary: "#5c7f67"/);
+  assert.match(theme, /header: "#2a2f28"/);
+  assert.match(theme, /sidebar: "#e6e6e6"/);
+  assert.equal(shell.includes("frontend/"), false);
+  assert.equal(shell.includes(".vue"), false);
+
+  const list = await readFile(path.join(mobileRoot, "src/screens/InventoryScreen.tsx"), "utf8");
+  assert.match(list, /Platform.OS === "web"/);
+  assert.doesNotMatch(list, /Pulled from the server[\s\S]*Platform\.OS === "web"/);
+});
+
 test("production images serve the Expo web export from Bun and omit the Nuxt output", async () => {
   for (const name of ["Dockerfile", "Dockerfile.rootless", "Dockerfile.hardened"]) {
     const text = await readFile(path.join(repoRoot, name), "utf8");

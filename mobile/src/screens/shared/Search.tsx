@@ -7,25 +7,27 @@ type Props = {
   onQueryChange: (value: string) => void;
   onSubmitSearch: () => void;
   onScan: () => void;
+  variant?: "default" | "header";
 };
 
 // Search field. The query is sent as typed; accent folding stays on the server.
 export function Search(props: Props) {
+  const header = props.variant === "header";
   return (
-    <View style={styles.searchRow}>
+    <View style={[styles.searchRow, header && styles.searchRowHeader]}>
       <TextInput
         value={props.query}
         onChangeText={props.onQueryChange}
         onSubmitEditing={props.onSubmitSearch}
         autoCapitalize="none"
         autoCorrect={false}
-        placeholder="Search items"
-        placeholderTextColor={colors.muted}
+        placeholder={header ? "Search" : "Search items"}
+        placeholderTextColor={header ? "#8a8a8a" : colors.muted}
         returnKeyType="search"
         accessibilityLabel="Search items"
-        style={styles.searchInput}
+        style={[styles.searchInput, header && styles.searchInputHeader]}
       />
-      <Pressable accessibilityRole="button" onPress={props.onScan} style={styles.scanButton}>
+      <Pressable accessibilityRole="button" onPress={props.onScan} style={[styles.scanButton, header && styles.scanButtonHeader]}>
         <Text style={styles.scanButtonText}>Scan</Text>
       </Pressable>
     </View>
@@ -34,6 +36,7 @@ export function Search(props: Props) {
 
 const styles = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12 },
+  searchRowHeader: { marginHorizontal: 0, marginTop: 0, width: 420, maxWidth: "100%" },
   searchInput: {
     flex: 1,
     borderWidth: 1,
@@ -45,6 +48,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  searchInputHeader: {
+    backgroundColor: "#ffffff",
+    borderColor: "transparent",
+    borderRadius: 6,
+    paddingVertical: 8,
+    color: "#333333",
+  },
   scanButton: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  scanButtonHeader: { borderRadius: 6, paddingVertical: 8 },
   scanButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "700" },
 });

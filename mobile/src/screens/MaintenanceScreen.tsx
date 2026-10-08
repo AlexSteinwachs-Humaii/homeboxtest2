@@ -1,4 +1,4 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { MaintenanceEntry } from "../api/client";
@@ -46,7 +46,11 @@ export function MaintenanceScreen(props: Props) {
       >
         <Text style={styles.kicker}>Maintenance</Text>
         <Text style={styles.title}>{props.groupName || "Collection"}</Text>
-        <Text style={styles.note}>Due work for this collection, loaded from the server. This phone does not keep a maintenance log.</Text>
+        <Text style={styles.note}>
+          {Platform.OS === "web"
+            ? "Due work for this collection, loaded from the server."
+            : "Due work for this collection, loaded from the server. This phone does not keep a maintenance log."}
+        </Text>
         {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
 
         <View style={styles.filters}>

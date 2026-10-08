@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Platform } from "react-native";
 
 import { HomeboxClient, type EntityDetail, type EntitySummary, type MaintenanceEntry } from "../api/client";
 import { createItem, createLocation, loadInventory, updateItem, type InventorySnapshot } from "../inventory/inventory";
@@ -10,10 +11,11 @@ import { readPreferredCollection, writePreferredCollection } from "../session/co
 import type { Account, StoredSession } from "../session/session";
 import { resolveWebPath, type ToolId } from "../tools/catalog";
 import { AccountScreen } from "./AccountScreen";
-import { InventoryScreen } from "./InventoryScreen";
-import { ItemDetail, ItemEdit, Maintenance, type EditorValues, type ServerPhoto } from "./inventory-ui";
+import { CollectionSwitcher, InventoryScreen } from "./InventoryScreen";
+import { ItemDetail, ItemEdit, Maintenance, Search, type EditorValues, type ServerPhoto } from "./inventory-ui";
 import { ScanScreen } from "./ScanScreen";
 import { ToolsScreen } from "./ToolsScreen";
+import { WebShell, type WebNav } from "./WebShell";
 
 type Props = {
   account: Account;
@@ -328,9 +330,106 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
     void reload(snapshot.groupId, false);
   }
 
-  if (view.name === "tools" && snapshot) {
+  function activeNav(): WebNav {
+    if (view.name === "list") return view.tab === "locations" ? "locations" : "items";
+    if (view.name === "maintenance") return "maintenance";
+    if (view.name === "account") return "profile";
+    if (view.name === "tools") {
+      if (view.toolId === "tags" || view.toolId === "templates") return view.toolId;
+      return "tools";
+    }
+    if (view.name === "location" || view.name === "edit-location") return "locations";
+    return "items";
+  }
+
+  function frame(node: ReactNode) {
+    if (Platform.OS !== "web") return node;
     const activeGroup = snapshot?.groupId ?? groupId;
     return (
+      <WebShell
+        accountName={account.name || account.email}
+        active={activeNav()}
+        onNavigate={(nav) => {
+          client.setGroup(snapshot?.groupId ?? groupId);
+          if (nav === "locations") setView({ name: "list", tab: "locations" });
+          else if (nav === "maintenance") {
+            setMaintenanceFilter("due");
+            setView({ name: "maintenance" });
+          } else if (nav === "profile") setView({ name: "account" });
+          else if (nav === "scan") setView({ name: "scan" });
+          else if (nav === "tags" || nav === "templates") setView({ name: "tools", toolId: nav });
+          else if (nav === "tools") setView({ name: "tools", toolId: null });
+          else setView({ name: "list", tab: "items" });
+        }}
+        onCreateItem={() => {
+          setSaveError(null);
+          setView({ name: "edit-item", id: null, parentId: snapshot?.locations[0]?.id ?? null });
+        }}
+        onCreateLocation={() => {
+          setSaveError(null);
+          setView({ name: "edit-location", parentId: null });
+        }}
+        onSignOut={onSignOut}
+        collections={
+          <CollectionSwitcher
+            compact
+            groups={snapshot?.groups ?? []}
+            groupId={activeGroup}
+            creatingGroup={creatingGroup}
+            groupError={groupError}
+            onCreateGroup={(name) => void onCreateGroup(name)}
+            onSelectGroup={(id) => {
+              writePreferredCollection(id);
+              setGroupId(id);
+              setGroupError(null);
+              setQuery("");
+              if (searchTimer.current) clearTimeout(searchTimer.current);
+              searchTicket.current += 1;
+              setSearching(false);
+              setSearchResults(null);
+              setSearchError(null);
+              setView({ name: "list", tab: "items" });
+              setMaintenance([]);
+              setMaintenanceError(null);
+              maintenanceTicket.current += 1;
+              void reload(id, true);
+            }}
+          />
+        }
+        search={
+          <Search
+            variant="header"
+            query={query}
+            onScan={() => setView({ name: "scan" })}
+            onSubmitSearch={() => {
+              if (searchTimer.current) clearTimeout(searchTimer.current);
+              void runSearch(query, activeGroup);
+            }}
+            onQueryChange={(value) => {
+              setQuery(value);
+              if (searchTimer.current) clearTimeout(searchTimer.current);
+              if (value.trim() === "") {
+                searchTicket.current += 1;
+                setSearching(false);
+                setSearchResults(null);
+                setSearchError(null);
+                return;
+              }
+              searchTimer.current = setTimeout(() => {
+                void runSearch(value, activeGroup);
+              }, 300);
+            }}
+          />
+        }
+      >
+        {node}
+      </WebShell>
+    );
+  }
+
+  if (view.name === "tools" && snapshot) {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    return frame(
       <ToolsScreen
         client={client}
         account={account}
@@ -352,13 +451,13 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
   }
 
   if (view.name === "account") {
-    return <AccountScreen account={account} busy={busy} onSignOut={onSignOut} onBack={() => setView({ name: "list", tab: "items" })} />;
+    return frame(<AccountScreen account={account} busy={busy} onSignOut={onSignOut} onBack={() => setView({ name: "list", tab: "items" })} />);
   }
 
   if (view.name === "maintenance") {
     const activeGroup = snapshot?.groupId ?? groupId;
     const groupName = snapshot?.groups.find((group) => group.id === activeGroup)?.name ?? "Collection";
-    return (
+    return frame(
       <Maintenance
         groupName={groupName}
         entries={maintenance}
@@ -386,7 +485,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
 
   if (view.name === "scan") {
     const activeGroup = snapshot?.groupId ?? groupId;
-    return (
+    return frame(
       <ScanScreen
         onBack={() => setView({ name: "list", tab: "items" })}
         onLookup={(code) => resolveCode(client, activeGroup, code)}
@@ -397,7 +496,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
 
   if (view.name === "edit-item" || view.name === "edit-location") {
     const editing = view.name === "edit-item" && view.id && detail?.id === view.id ? detail : null;
-    return (
+    return frame(
       <ItemEdit
         mode={view.name === "edit-location" ? "create-location" : editing ? "edit-item" : "create-item"}
         initial={{
@@ -417,7 +516,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
 
   if (view.name === "item" || view.name === "location") {
     const filed = snapshot?.items.filter((item) => item.parentId === view.id) ?? [];
-    return (
+    return frame(
       <ItemDetail
         kind={view.name}
         detail={detail?.id === view.id ? detail : null}
@@ -454,7 +553,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
   const searchActive = query.trim() !== "" && searchResults !== null;
   const tab = view.name === "list" ? view.tab : "items";
 
-  return (
+  return frame(
     <InventoryScreen
       email={account.email}
       groupName={groupName}

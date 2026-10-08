@@ -78,7 +78,7 @@ Link an Expo account/project with `eas init`. If the CLI cannot write the dynami
 
 ## Web
 
-The browser client is this same Expo app, not a second copy of the screens and not the Vue app in `frontend/`.
+The browser client is this same Expo app, not a second copy of the screens and not the Vue app in `frontend/`. On the web it is wrapped in the original website chrome: gray sidebar, sage create button, dark header, and a gray canvas (`src/screens/WebShell.tsx`). The phone layout is unchanged.
 
 ```bash
 cd mobile

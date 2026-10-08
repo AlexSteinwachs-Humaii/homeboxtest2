@@ -42,7 +42,9 @@ export function ItemEditorScreen({ mode, initial, locations, busy, error, onBack
           <Text style={styles.subtitle}>
             {isLocation
               ? "A location is only a place to file items. This does not edit the whole tree."
-              : "Choose a location if this collection has one. The server stores the item, not this phone."}
+              : Platform.OS === "web"
+                ? "Choose a location if this collection has one. The server stores the item."
+                : "Choose a location if this collection has one. The server stores the item, not this phone."}
           </Text>
 
           <View style={styles.card}>

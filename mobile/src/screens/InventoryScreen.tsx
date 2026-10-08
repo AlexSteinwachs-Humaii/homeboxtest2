@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntitySummary, GroupSummary, TreeNode } from "../api/client";
-import { colors } from "../theme";
+import { colors, homebox } from "../theme";
 import { Items, Locations, Search } from "./inventory-ui";
 
 type Tab = "items" | "locations";
@@ -42,9 +42,15 @@ type Props = {
   onSignOut: () => void;
 };
 
-export function InventoryScreen(props: Props) {
-  const showingItems = props.searchActive || props.tab === "items";
-  const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
+export function CollectionSwitcher(props: {
+  groups: GroupSummary[];
+  groupId: string;
+  creatingGroup: boolean;
+  groupError: string | null;
+  onSelectGroup: (id: string) => void;
+  onCreateGroup: (name: string) => void;
+  compact?: boolean;
+}) {
   const [creating, setCreating] = useState(false);
   const [collectionName, setCollectionName] = useState("");
 
@@ -54,33 +60,9 @@ export function InventoryScreen(props: Props) {
   }, [props.groupId]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.kicker}>HomeBox</Text>
-          <Text style={styles.title}>{props.tab === "items" ? "Items" : "Locations"}</Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {props.groupName || "Collection"} · {props.email}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          <Pressable accessibilityRole="button" onPress={props.onMaintenance} style={styles.textButton}>
-            <Text style={styles.textButtonLabel}>Maintenance</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Tools" onPress={props.onTools} style={styles.textButton}>
-            <Text style={styles.textButtonLabel}>Tools</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={props.onAccount} style={styles.textButton}>
-            <Text style={styles.textButtonLabel}>Account</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={props.onSignOut} style={styles.textButton}>
-            <Text style={styles.textButtonLabel}>Sign out</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.collectionBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+    <View style={props.compact ? styles.collectionStack : undefined}>
+      <View style={props.compact ? styles.collectionStack : styles.collectionBar}>
+        <ScrollView horizontal={!props.compact} showsHorizontalScrollIndicator={false} contentContainerStyle={props.compact ? styles.chipsStacked : styles.chips}>
           {props.groups.map((group) => {
             const selected = group.id === props.groupId;
             return (
@@ -90,7 +72,7 @@ export function InventoryScreen(props: Props) {
                 accessibilityLabel={`Switch to ${group.name}`}
                 accessibilityState={{ selected }}
                 onPress={() => props.onSelectGroup(group.id)}
-                style={[styles.chip, selected && styles.chipSelected]}
+                style={[styles.chip, selected && styles.chipSelected, props.compact && styles.chipStacked]}
               >
                 <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{group.name}</Text>
               </Pressable>
@@ -124,6 +106,78 @@ export function InventoryScreen(props: Props) {
         </View>
       ) : null}
       {props.groupError ? <Text style={styles.error}>{props.groupError}</Text> : null}
+    </View>
+  );
+}
+
+export function InventoryScreen(props: Props) {
+  const showingItems = props.searchActive || props.tab === "items";
+  const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
+
+  if (Platform.OS === "web") {
+    const heading = props.tab === "items" ? "Items" : "Locations";
+    const count = showingItems ? props.items.length : locationRows.length;
+    return (
+      <ScrollView contentContainerStyle={styles.webPage}>
+        <View style={styles.webHeadingRow}>
+          <Text style={styles.webHeading}>{heading}</Text>
+          <Text style={styles.webCount}>{count}</Text>
+        </View>
+        {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
+        {props.loading && !props.refreshing ? <Text style={styles.empty}>Loading from the server…</Text> : null}
+        {showingItems ? (
+          <Items
+            items={props.items}
+            loading={props.loading}
+            error={props.error}
+            searchActive={props.searchActive}
+            searching={props.searching}
+            onOpenItem={props.onOpenItem}
+          />
+        ) : (
+          <Locations rows={locationRows} loading={props.loading} error={props.error} onOpenLocation={props.onOpenLocation} />
+        )}
+        <Pressable accessibilityRole="button" onPress={props.onRefresh} style={styles.textButton}>
+          <Text style={styles.textButtonLabel}>Refresh</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.kicker}>HomeBox</Text>
+          <Text style={styles.title}>{props.tab === "items" ? "Items" : "Locations"}</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {props.groupName || "Collection"} · {props.email}
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable accessibilityRole="button" onPress={props.onMaintenance} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Maintenance</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Tools" onPress={props.onTools} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Tools</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={props.onAccount} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Account</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={props.onSignOut} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Sign out</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <CollectionSwitcher
+        groups={props.groups}
+        groupId={props.groupId}
+        creatingGroup={props.creatingGroup}
+        groupError={props.groupError}
+        onSelectGroup={props.onSelectGroup}
+        onCreateGroup={props.onCreateGroup}
+      />
 
       <View style={styles.tabs}>
         <TabButton label="Items" selected={props.tab === "items"} onPress={() => props.onSelectTab("items")} />
@@ -225,6 +279,22 @@ const styles = StyleSheet.create({
   tabSelected: { backgroundColor: colors.primary },
   tabText: { fontSize: 15, fontWeight: "600", color: colors.muted },
   tabTextSelected: { color: colors.onPrimary },
+  collectionStack: { gap: 4 },
+  chipsStacked: { gap: 8, paddingVertical: 4 },
+  chipStacked: { alignSelf: "flex-start" },
+  webPage: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 40, maxWidth: 1120, width: "100%", alignSelf: "center" },
+  webHeadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  webHeading: { fontSize: 18, fontWeight: "600", color: homebox.text },
+  webCount: {
+    backgroundColor: homebox.primary,
+    color: homebox.primaryText,
+    overflow: "hidden",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   error: { marginHorizontal: 20, marginTop: 12, backgroundColor: colors.dangerBg, color: colors.danger, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, lineHeight: 20 },
   list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },

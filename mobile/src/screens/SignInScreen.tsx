@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createElement, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { colors } from "../theme";
+import { colors, homebox } from "../theme";
 
 export type SignInForm = {
   serverUrl: string;
@@ -34,6 +34,90 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
   const [password, setPassword] = useState("");
   const [stayLoggedIn, setStayLoggedIn] = useState(true);
 
+  const form = (
+    <>
+      <Field
+        label="Server address"
+        value={serverUrl}
+        onChangeText={setServerUrl}
+        placeholder="http://192.168.1.20:7745"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        textContentType="URL"
+        editable={!busy}
+        hint="Include https:// if your server uses it. Otherwise http:// is assumed."
+      />
+      <Field
+        label="Email"
+        value={username}
+        onChangeText={setUsername}
+        placeholder="you@example.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="username"
+        editable={!busy}
+      />
+      <Field
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Password"
+        secureTextEntry
+        textContentType="password"
+        editable={!busy}
+      />
+      <View style={styles.remember}>
+        <View style={styles.rememberCopy}>
+          <Text style={styles.rememberTitle}>Stay signed in</Text>
+          <Text style={styles.hint}>Keeps the session for longer. The inventory still lives on the server.</Text>
+        </View>
+        <Switch
+          value={stayLoggedIn}
+          onValueChange={setStayLoggedIn}
+          disabled={busy}
+          trackColor={{ true: colors.mark, false: colors.line }}
+          accessibilityLabel="Stay signed in"
+        />
+      </View>
+      {error ? (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={() => onSubmit({ serverUrl, username, password, stayLoggedIn })}
+        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, busy && styles.buttonBusy]}
+      >
+        <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>
+      </Pressable>
+    </>
+  );
+
+  if (Platform.OS === "web") {
+    return (
+      <ScrollView style={styles.webPage} contentContainerStyle={styles.webContent}>
+        <View style={styles.waveBand}>
+          <View style={styles.waveFill} />
+          <Wave />
+        </View>
+        <View style={styles.webHeader}>
+          <Text style={styles.webTitle}>
+            HomeB<Text style={styles.webLogo}>⌂</Text>x
+          </Text>
+          <Text style={styles.webTagline}>Track, Organize, and Manage your Things.</Text>
+        </View>
+        <View style={styles.webCard}>
+          <Text style={styles.webCardTitle}>Login</Text>
+          {form}
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -44,74 +128,10 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
           <Text style={styles.title}>HomeBox</Text>
           <Text style={styles.subtitle}>Sign in to the server that already holds your inventory.</Text>
 
-          <View style={styles.card}>
-            <Field
-              label="Server address"
-              value={serverUrl}
-              onChangeText={setServerUrl}
-              placeholder="http://192.168.1.20:7745"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              textContentType="URL"
-              editable={!busy}
-              hint="Include https:// if your server uses it. Otherwise http:// is assumed."
-            />
-            <Field
-              label="Email"
-              value={username}
-              onChangeText={setUsername}
-              placeholder="you@example.com"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="username"
-              editable={!busy}
-            />
-            <Field
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              secureTextEntry
-              textContentType="password"
-              editable={!busy}
-            />
-
-            <View style={styles.remember}>
-              <View style={styles.rememberCopy}>
-                <Text style={styles.rememberTitle}>Stay signed in</Text>
-                <Text style={styles.hint}>Keeps the session for longer. The inventory still lives on the server.</Text>
-              </View>
-              <Switch
-                value={stayLoggedIn}
-                onValueChange={setStayLoggedIn}
-                disabled={busy}
-                trackColor={{ true: colors.mark, false: colors.line }}
-                accessibilityLabel="Stay signed in"
-              />
-            </View>
-
-            {error ? (
-              <Text style={styles.error} accessibilityRole="alert">
-                {error}
-              </Text>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={busy}
-              onPress={() => onSubmit({ serverUrl, username, password, stayLoggedIn })}
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed, busy && styles.buttonBusy]}
-            >
-              <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>
-            </Pressable>
-          </View>
+          <View style={styles.card}>{form}</View>
 
           <Text style={styles.footer}>
-            {Platform.OS === "web"
-              ? "This browser does not keep a copy of the inventory and does not open the server database. Signing in asks the server who you are."
-              : "This phone does not keep a copy of the inventory. Closing the app and opening it again asks the server who you are."}
+            This phone does not keep a copy of the inventory. Closing the app and opening it again asks the server who you are.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -150,7 +170,48 @@ function Field({
   );
 }
 
+function Wave() {
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 1440 320",
+      preserveAspectRatio: "none",
+      style: { width: "100%", height: 120, display: "block" },
+    },
+    createElement("path", {
+      fill: homebox.primary,
+      d: "M0,32L80,69.3C160,107,320,181,480,181.3C640,181,800,107,960,117.3C1120,128,1280,224,1360,272L1440,320L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z",
+    }),
+  );
+}
+
 const styles = StyleSheet.create({
+  webPage: { flex: 1, backgroundColor: "#ffffff" },
+  webContent: { paddingBottom: 48 },
+  waveBand: { position: "absolute", top: 0, left: 0, right: 0 },
+  waveFill: { height: 180, backgroundColor: homebox.primary },
+  webHeader: { paddingHorizontal: 48, paddingTop: 36, zIndex: 1 },
+  webTitle: { fontSize: 56, fontWeight: "700", color: homebox.accent, letterSpacing: -1 },
+  webLogo: { fontSize: 42, color: homebox.accent },
+  webTagline: { marginTop: 4, marginLeft: 4, fontSize: 18, color: homebox.accent },
+  webCard: {
+    marginTop: 48,
+    marginHorizontal: 24,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 500,
+    backgroundColor: "#ffffff",
+    borderRadius: homebox.radius,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    padding: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    zIndex: 1,
+  },
+  webCardTitle: { fontSize: 22, fontWeight: "600", color: homebox.text, marginBottom: 12 },
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 40, maxWidth: 520, width: "100%", alignSelf: "center" },

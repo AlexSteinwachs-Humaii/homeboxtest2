@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors } from "../../theme";
+import { colors, homebox } from "../../theme";
 
 export type LocationRow = {
   id: string;
@@ -17,8 +17,9 @@ type Props = {
 
 // Location list. Same module on the phone and in the browser.
 export function Locations(props: Props) {
+  const web = Platform.OS === "web";
   return (
-    <View>
+    <View style={web ? styles.card : undefined}>
       {!props.loading && props.rows.length === 0 ? (
         <Text style={styles.empty}>{props.error ? "No locations to show until the server answers." : "No locations yet. Add one to file an item in it."}</Text>
       ) : null}
@@ -27,13 +28,13 @@ export function Locations(props: Props) {
           key={location.id}
           accessibilityRole="button"
           onPress={() => props.onOpenLocation(location.id)}
-          style={[styles.row, { paddingLeft: 16 + location.depth * 16 }]}
+          style={[web ? styles.webRow : styles.row, { paddingLeft: 16 + location.depth * 16 }]}
         >
           <View style={styles.rowCopy}>
             <Text style={styles.rowTitle}>{location.name}</Text>
             <Text style={styles.rowMeta}>{location.depth > 0 ? "Inside another location" : "Top level"}</Text>
           </View>
-          <Text style={styles.chevron}>›</Text>
+          {web ? null : <Text style={styles.chevron}>›</Text>}
         </Pressable>
       ))}
     </View>
@@ -41,6 +42,20 @@ export function Locations(props: Props) {
 }
 
 const styles = StyleSheet.create({
+  card: {
+    backgroundColor: homebox.card,
+    borderRadius: homebox.radius,
+    borderWidth: 1,
+    borderColor: homebox.border,
+    overflow: "hidden",
+  },
+  webRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e5e5",
+  },
   empty: { marginTop: 24, fontSize: 16, lineHeight: 22, color: colors.muted },
   row: {
     flexDirection: "row",
