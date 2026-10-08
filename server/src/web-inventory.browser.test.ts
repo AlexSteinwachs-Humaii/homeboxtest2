@@ -241,7 +241,7 @@ browserTest(
       expect(lampId).toMatch(/^[0-9a-f-]{36}$/);
 
       expect(await click(page, "Items")).toBe("ok");
-      await waitForText(page, "New item");
+      await waitForText(page, "Create");
       expect(await fill(page, "Search items", "café")).toBe("ok");
       await waitForFetch(page, "q=caf");
       await waitForText(page, "Café lamp", 8_000);

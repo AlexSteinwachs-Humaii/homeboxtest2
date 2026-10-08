@@ -28,6 +28,7 @@ export const homebox = {
   primary: "#5c7f67",
   primaryText: "#c7ffd9",
   accent: "#eef6e8",
+  accentText: "#213318",
   card: "#ffffff",
   text: "#333333",
   muted: "#5c5c5c",

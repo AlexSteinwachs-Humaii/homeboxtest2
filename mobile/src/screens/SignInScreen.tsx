@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { defaultWebServerUrl } from "../api/client";
 import { colors, homebox } from "../theme";
+import { HouseMark } from "./web-marks";
 
 export type SignInForm = {
   serverUrl: string;
@@ -115,9 +116,11 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
           <Wave />
         </View>
         <View style={styles.webHeader}>
-          <Text style={styles.webTitle}>
-            HomeB<Text style={styles.webLogo}>⌂</Text>x
-          </Text>
+          <View style={styles.webTitleRow}>
+            <Text style={styles.webTitle}>HomeB</Text>
+            <HouseMark width={48} height={44} label="" />
+            <Text style={styles.webTitle}>x</Text>
+          </View>
           <Text style={styles.webTagline}>Track, Organize, and Manage your Things.</Text>
         </View>
         <View style={styles.webCard}>
@@ -201,6 +204,7 @@ const styles = StyleSheet.create({
   waveBand: { position: "absolute", top: 0, left: 0, right: 0 },
   waveFill: { height: 180, backgroundColor: homebox.primary },
   webHeader: { paddingHorizontal: 48, paddingTop: 36, zIndex: 1 },
+  webTitleRow: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
   webTitle: { fontSize: 56, fontWeight: "700", color: homebox.accent, letterSpacing: -1 },
   webLogo: { fontSize: 42, color: homebox.accent },
   webTagline: { marginTop: 4, marginLeft: 4, fontSize: 18, color: homebox.accent },

@@ -72,15 +72,25 @@ export function CollectionSwitcher(props: {
                 accessibilityLabel={`Switch to ${group.name}`}
                 accessibilityState={{ selected }}
                 onPress={() => props.onSelectGroup(group.id)}
-                style={[styles.chip, selected && styles.chipSelected, props.compact && styles.chipStacked]}
+                style={[
+                  props.compact ? styles.collectionButton : styles.chip,
+                  !props.compact && selected && styles.chipSelected,
+                  props.compact && styles.chipStacked,
+                ]}
               >
-                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{group.name}</Text>
+                <Text
+                  style={[props.compact ? styles.collectionButtonText : styles.chipText, !props.compact && selected && styles.chipTextSelected]}
+                  numberOfLines={1}
+                >
+                  {group.name}
+                </Text>
+                {props.compact ? <Text style={styles.collectionChevron}>⌄</Text> : null}
               </Pressable>
             );
           })}
         </ScrollView>
-        <Pressable accessibilityRole="button" accessibilityLabel="New collection" onPress={() => setCreating(true)} style={styles.textButton}>
-          <Text style={styles.textButtonLabel}>New collection</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="New collection" onPress={() => setCreating(true)} style={[styles.textButton, props.compact && styles.newCollection]}>
+          <Text style={[styles.textButtonLabel, props.compact && styles.newCollectionText]}>New collection</Text>
         </Pressable>
       </View>
       {creating ? (
@@ -115,14 +125,21 @@ export function InventoryScreen(props: Props) {
   const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
 
   if (Platform.OS === "web") {
-    const heading = props.tab === "items" ? "Items" : "Locations";
-    const count = showingItems ? props.items.length : locationRows.length;
+    const heading = props.tab === "items" ? "Search" : "Locations";
     return (
       <ScrollView contentContainerStyle={styles.webPage}>
         <View style={styles.webHeadingRow}>
           <Text style={styles.webHeading}>{heading}</Text>
-          <Text style={styles.webCount}>{count}</Text>
         </View>
+        {showingItems ? (
+          <View style={styles.filterRow}>
+            <Text style={styles.filterChip}>Locations</Text>
+            <Text style={styles.filterChip}>Tags</Text>
+            <Text style={styles.filterChip}>Options</Text>
+            <View style={styles.filterGrow} />
+            <Text style={styles.filterChip}>Tips</Text>
+          </View>
+        ) : null}
         {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
         {props.loading && !props.refreshing ? <Text style={styles.empty}>Loading from the server…</Text> : null}
         {showingItems ? (
@@ -270,6 +287,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
+  collectionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: homebox.border,
+    borderRadius: homebox.radius,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  collectionButtonText: { flex: 1, color: homebox.text, fontSize: 14, fontWeight: "500" },
+  collectionChevron: { color: homebox.muted, fontSize: 16, marginLeft: 8 },
+  newCollection: { alignSelf: "flex-start", paddingLeft: 4, paddingVertical: 6 },
+  newCollectionText: { color: homebox.text, fontWeight: "500", fontSize: 14 },
   chip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 7 },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 14, fontWeight: "600" },
@@ -283,18 +319,20 @@ const styles = StyleSheet.create({
   chipsStacked: { gap: 8, paddingVertical: 4 },
   chipStacked: { alignSelf: "flex-start" },
   webPage: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 40, maxWidth: 1120, width: "100%", alignSelf: "center" },
-  webHeadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  webHeadingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   webHeading: { fontSize: 18, fontWeight: "600", color: homebox.text },
-  webCount: {
-    backgroundColor: homebox.primary,
-    color: homebox.primaryText,
-    overflow: "hidden",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  filterRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: homebox.border,
+    backgroundColor: homebox.card,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     fontSize: 13,
-    fontWeight: "600",
+    color: homebox.text,
   },
+  filterGrow: { flex: 1 },
   error: { marginHorizontal: 20, marginTop: 12, backgroundColor: colors.dangerBg, color: colors.danger, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, lineHeight: 20 },
   list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },

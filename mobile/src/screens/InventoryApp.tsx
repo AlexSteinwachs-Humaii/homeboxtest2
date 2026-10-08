@@ -15,6 +15,7 @@ import { CollectionSwitcher, InventoryScreen } from "./InventoryScreen";
 import { ItemDetail, ItemEdit, Maintenance, Search, type EditorValues, type ServerPhoto } from "./inventory-ui";
 import { ScanScreen } from "./ScanScreen";
 import { ToolsScreen } from "./ToolsScreen";
+import { WebHome } from "./WebHome";
 import { WebShell, type WebNav } from "./WebShell";
 
 type Props = {
@@ -27,6 +28,7 @@ type Props = {
 };
 
 type View =
+  | { name: "home" }
   | { name: "list"; tab: "items" | "locations" }
   | { name: "item"; id: string }
   | { name: "location"; id: string }
@@ -38,7 +40,7 @@ type View =
   | { name: "tools"; toolId: string | null; focusId?: string; missingTitle?: string; missingPath?: string };
 
 function viewFromPath(path: string | undefined): View {
-  if (!path) return { name: "list", tab: "items" };
+  if (!path) return Platform.OS === "web" ? { name: "home" } : { name: "list", tab: "items" };
   const route = resolveWebPath(path);
   if (route.kind === "locations") return { name: "list", tab: "locations" };
   if (route.kind === "maintenance") return { name: "maintenance" };
@@ -331,6 +333,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
   }
 
   function activeNav(): WebNav {
+    if (view.name === "home") return "home";
     if (view.name === "list") return view.tab === "locations" ? "locations" : "items";
     if (view.name === "maintenance") return "maintenance";
     if (view.name === "account") return "profile";
@@ -351,7 +354,9 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
         active={activeNav()}
         onNavigate={(nav) => {
           client.setGroup(snapshot?.groupId ?? groupId);
-          if (nav === "locations") setView({ name: "list", tab: "locations" });
+          if (nav === "home") setView({ name: "home" });
+          else if (nav === "items") setView({ name: "list", tab: "items" });
+          else if (nav === "locations") setView({ name: "list", tab: "locations" });
           else if (nav === "maintenance") {
             setMaintenanceFilter("due");
             setView({ name: "maintenance" });
@@ -369,6 +374,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
           setSaveError(null);
           setView({ name: "edit-location", parentId: null });
         }}
+        onCreateTag={() => setView({ name: "tools", toolId: "tags" })}
         onSignOut={onSignOut}
         collections={
           <CollectionSwitcher
@@ -407,6 +413,7 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
             }}
             onQueryChange={(value) => {
               setQuery(value);
+              if (value.trim() !== "") setView({ name: "list", tab: "items" });
               if (searchTimer.current) clearTimeout(searchTimer.current);
               if (value.trim() === "") {
                 searchTicket.current += 1;
@@ -546,6 +553,21 @@ export function InventoryApp({ account, session, busy, requestedPath, onSignOut,
         }
         onOpenItem={(id) => void openEntity(id, "item")}
       />
+    );
+  }
+
+  if (view.name === "home") {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    return frame(
+      <WebHome
+        client={client}
+        groupId={activeGroup}
+        locations={snapshot?.locations ?? []}
+        loading={loading}
+        onOpenItem={(id) => void openEntity(id, "item")}
+        onOpenLocation={(id) => void openEntity(id, "location")}
+        onOpenTags={() => setView({ name: "tools", toolId: "tags" })}
+      />,
     );
   }
 

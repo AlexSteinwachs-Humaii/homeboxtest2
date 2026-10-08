@@ -41,6 +41,7 @@ test("the website login asks only for email and password", async () => {
 
 test("the browser chrome follows the original HomeBox website, not the phone list", async () => {
   const shell = await readFile(path.join(mobileRoot, "src/screens/WebShell.tsx"), "utf8");
+  const home = await readFile(path.join(mobileRoot, "src/screens/WebHome.tsx"), "utf8");
   const theme = await readFile(path.join(mobileRoot, "src/theme.ts"), "utf8");
   assert.match(shell, /Welcome,/);
   assert.match(shell, /label: "Home"/);
@@ -48,8 +49,15 @@ test("the browser chrome follows the original HomeBox website, not the phone lis
   assert.match(shell, /label: "Search"/);
   assert.match(shell, /label: "Maintenance"/);
   assert.match(shell, /label: "Profile"/);
+  assert.match(shell, /label: "Collection"/);
+  assert.match(shell, /aria: "Tools"/);
   assert.match(shell, /Sign out/);
   assert.match(shell, /accessibilityLabel="New item"/);
+  assert.match(shell, />Create</);
+  assert.match(home, /Quick Statistics/);
+  assert.match(home, /Recently Added/);
+  assert.match(home, /Storage Locations/);
+  assert.match(home, /Total Items/);
   assert.match(theme, /canvas: "#cfcfcf"/);
   assert.match(theme, /primary: "#5c7f67"/);
   assert.match(theme, /header: "#2a2f28"/);

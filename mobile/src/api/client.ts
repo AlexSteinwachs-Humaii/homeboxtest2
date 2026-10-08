@@ -206,6 +206,21 @@ export type EntitySummary = {
   entityTypeName: string | null;
   isLocation: boolean;
   itemCount: number;
+  insured: boolean;
+  purchasePrice: number;
+};
+
+export type TagChip = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type GroupStatistics = {
+  totalItems: number;
+  totalLocations: number;
+  totalTags: number;
+  totalItemPrice: number;
 };
 
 export type BarcodeProduct = {
@@ -457,6 +472,40 @@ export class HomeboxClient {
       parse: readEntityList,
       failure: isLocation ? "The server did not return locations." : "The server did not return items.",
       malformed: isLocation ? "The server did not return locations." : "The server did not return items.",
+    });
+  }
+
+  // Home "Recently Added" uses the same order the website asks for.
+  recentItems(): Promise<ApiResult<EntitySummary[]>> {
+    return this.request(`${ENTITIES_PATH}?page=1&pageSize=5&orderBy=createdAt`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readEntityList,
+      failure: "The server did not return items.",
+      malformed: "The server did not return items.",
+    });
+  }
+
+  groupStatistics(): Promise<ApiResult<GroupStatistics>> {
+    return this.request("/api/v1/groups/statistics", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readGroupStatistics,
+      failure: "The server did not return statistics.",
+      malformed: "The server did not return statistics.",
+    });
+  }
+
+  listTags(): Promise<ApiResult<TagChip[]>> {
+    return this.request("/api/v1/tags", {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readTagChips,
+      failure: "The server did not return tags.",
+      malformed: "The server did not return tags.",
     });
   }
 
@@ -1327,7 +1376,30 @@ function readSummary(data: unknown): EntitySummary | null {
     entityTypeName: entityType && typeof entityType.name === "string" ? entityType.name : null,
     isLocation: entityType?.isLocation === true,
     itemCount: typeof data.itemCount === "number" ? data.itemCount : 0,
+    insured: data.insured === true,
+    purchasePrice: typeof data.purchasePrice === "number" && Number.isFinite(data.purchasePrice) ? data.purchasePrice : 0,
   };
+}
+
+function readGroupStatistics(data: unknown): GroupStatistics | null {
+  if (!isRecord(data)) return null;
+  const numberOr = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+  return {
+    totalItems: numberOr(data.totalItems),
+    totalLocations: numberOr(data.totalLocations),
+    totalTags: numberOr(data.totalTags),
+    totalItemPrice: numberOr(data.totalItemPrice),
+  };
+}
+
+function readTagChips(data: unknown): TagChip[] | null {
+  if (!Array.isArray(data)) return null;
+  const tags: TagChip[] = [];
+  for (const row of data) {
+    if (!isRecord(row) || typeof row.id !== "string" || typeof row.name !== "string") continue;
+    tags.push({ id: row.id, name: row.name, color: typeof row.color === "string" ? row.color : "" });
+  }
+  return tags;
 }
 
 function readEntityDetail(data: unknown): EntityDetail | null {
