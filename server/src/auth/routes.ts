@@ -2,17 +2,9 @@ import type { Context } from "hono";
 import type { Database } from "bun:sqlite";
 
 import type { ServerConfig } from "../config.ts";
-import { parseSqliteDateTime, sqliteNow } from "../db/storage.ts";
-import {
-  authClearCookies,
-  authSetCookies,
-  COOKIE_TOKEN,
-  cookieDomain,
-  readCookie,
-  withSetCookies,
-} from "./cookies.ts";
+import { authClearCookies, authSetCookies, cookieDomain, withSetCookies } from "./cookies.ts";
+import { resolveAuth } from "./guard.ts";
 import { finishOidcCallback, startOidcLogin, type OidcRuntime } from "./oidc.ts";
-import { hashApiKey } from "./token.ts";
 import {
   AuthError,
   deleteAllSessions,
@@ -23,7 +15,6 @@ import {
   renewSession,
   requestPasswordReset,
   resetPassword,
-  sessionFromToken,
   type MailSender,
 } from "./users.ts";
 
@@ -33,14 +24,6 @@ export type AuthDeps = {
   oidc?: OidcRuntime | null;
   mailer?: MailSender | null;
   env?: Record<string, string | undefined>;
-};
-
-type ResolvedAuth = {
-  raw: string;
-  source: "cookie" | "bearer" | "query" | "ws_protocol";
-  userId: Uint8Array;
-  isApiKey: boolean;
-  roles: string[];
 };
 
 export function mountAuthRoutes(app: { post: Function; get: Function }, deps: AuthDeps): void {
@@ -231,68 +214,6 @@ async function handleOidcCallback(c: Context, deps: AuthDeps): Promise<Response>
   }
   headers.set("location", absoluteLocation(c.req.raw, "/home"));
   return new Response(null, { status: 302, headers });
-}
-
-function resolveAuth(request: Request, db: Database): ResolvedAuth | null {
-  const cookie = readCookie(request.headers.get("cookie"), COOKIE_TOKEN);
-  let raw = cookie ?? "";
-  let source: ResolvedAuth["source"] = "cookie";
-  if (!raw) {
-    const header = request.headers.get("authorization");
-    if (header) {
-      raw = header;
-      source = "bearer";
-    }
-  }
-  if (!raw) {
-    const protocol = request.headers.get("sec-websocket-protocol");
-    const parts = protocol?.split(",") ?? [];
-    if (parts.length >= 2 && parts[1].trim()) {
-      raw = parts[1].trim();
-      source = "ws_protocol";
-    }
-  }
-  if (!raw) {
-    const query = new URL(request.url).searchParams.get("access_token");
-    if (query) {
-      raw = query;
-      source = "query";
-    }
-  }
-  if (!raw) return null;
-  raw = raw.startsWith("Bearer ") ? raw.slice("Bearer ".length) : raw;
-
-  const session = sessionFromToken(db, raw);
-  if (session) {
-    return { raw, source, userId: session.user.id, isApiKey: false, roles: session.roles };
-  }
-  if (source !== "bearer") return null;
-  const key = lookupApiKey(db, raw);
-  if (!key) return null;
-  return { raw, source, userId: key, isApiKey: true, roles: ["user"] };
-}
-
-function lookupApiKey(db: Database, raw: string): Uint8Array | null {
-  let hash: Uint8Array;
-  try {
-    hash = hashApiKey(raw);
-  } catch {
-    return null;
-  }
-  const row = db
-    .query(`SELECT id, user_id, expires_at FROM api_keys WHERE token = ?`)
-    .get(hash) as { id: Uint8Array; user_id: Uint8Array; expires_at: string | null } | null;
-  if (!row) return null;
-  if (row.expires_at) {
-    try {
-      if (parseSqliteDateTime(row.expires_at).getTime() <= Date.now()) return null;
-    } catch {
-      return null;
-    }
-  }
-  const stamp = sqliteNow();
-  db.run(`UPDATE api_keys SET last_used_at = ?, updated_at = ? WHERE id = ?`, [stamp, stamp, row.id]);
-  return row.user_id instanceof Uint8Array ? row.user_id : new Uint8Array(row.user_id);
 }
 
 async function readLoginForm(request: Request): Promise<{ username: string; password: string; stayLoggedIn: boolean }> {

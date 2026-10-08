@@ -48,6 +48,7 @@ COPY --chown=nonroot:nonroot server/package.json server/bun.lock ./
 COPY --chown=nonroot:nonroot server/src ./src
 COPY --chown=nonroot:nonroot server/healthcheck.ts ./healthcheck.ts
 COPY --chown=nonroot:nonroot backend/internal/data/migrations/sqlite3 ./migrations/sqlite3
+COPY --chown=nonroot:nonroot backend/internal/core/currencies/currencies.json ./currencies.json
 COPY --from=frontend-builder --chown=nonroot:nonroot /app/.output/public ./frontend/.output/public
 
 LABEL Name=homebox Version=0.0.1

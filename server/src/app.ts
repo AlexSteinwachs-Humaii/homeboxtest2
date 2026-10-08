@@ -1,7 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { Hono } from "hono";
 
+import { loadCurrencies } from "./auth/currencies.ts";
 import { mailerFromConfig } from "./auth/mailer.ts";
+import { mountProtectedRoutes } from "./auth/protected.ts";
 import { mountAuthRoutes, type AuthDeps } from "./auth/routes.ts";
 import type { OidcRuntime } from "./auth/oidc.ts";
 import type { MailSender } from "./auth/users.ts";
@@ -62,6 +64,10 @@ export function createApp(
   const oidc = options.oidc ?? null;
 
   app.get("/api/v1/status", (c) => c.json(statusBody(config, Boolean(oidc))));
+  app.get("/api/v1/currencies", (c) => {
+    c.header("cache-control", "max-age=600");
+    return c.json(loadCurrencies());
+  });
 
   if (options.db) {
     const deps: AuthDeps = {
@@ -72,6 +78,7 @@ export function createApp(
       env: options.env ?? env,
     };
     mountAuthRoutes(app, deps);
+    mountProtectedRoutes(app, options.db);
   }
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

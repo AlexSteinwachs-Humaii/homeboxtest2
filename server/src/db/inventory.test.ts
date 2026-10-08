@@ -113,12 +113,12 @@ describe("go-written fixture", () => {
     const opened = new Database(path);
     opened.exec("PRAGMA foreign_keys = ON");
 
-    const item = getEntityById(opened, ids.itemId);
-    const location = getEntityById(opened, ids.locationId);
-    const tag = getTagById(opened, ids.tagId);
-    const legacyTag = getTagById(opened, ids.legacyTagId);
-    const field = getEntityFieldById(opened, ids.fieldId);
-    const maintenance = getMaintenanceEntryById(opened, ids.maintenanceId);
+    const item = getEntityById(opened, ids.groupId, ids.itemId);
+    const location = getEntityById(opened, ids.groupId, ids.locationId);
+    const tag = getTagById(opened, ids.groupId, ids.tagId);
+    const legacyTag = getTagById(opened, ids.legacyGroupId, ids.legacyTagId);
+    const field = getEntityFieldById(opened, ids.groupId, ids.fieldId);
+    const maintenance = getMaintenanceEntryById(opened, ids.groupId, ids.maintenanceId);
 
     expect(item?.id).toBe(ids.itemId);
     expect(location?.id).toBe(ids.locationId);
@@ -136,15 +136,17 @@ describe("go-written fixture", () => {
     expect(tag?.groupId).toBe(ids.groupId);
     expect(field?.entityId).toBe(ids.itemId);
     expect(maintenance?.entityId).toBe(ids.itemId);
-    expect(listTagIdsForEntity(opened, ids.itemId)).toEqual([ids.tagId]);
+    expect(listTagIdsForEntity(opened, ids.groupId, ids.itemId)).toEqual([ids.tagId]);
 
     const locations = listEntities(opened, { groupId: ids.groupId, isLocation: true });
     const items = listEntities(opened, { groupId: ids.groupId, isLocation: false });
     expect(locations.map((row) => row.id)).toEqual([ids.locationId]);
     expect(items.map((row) => row.id)).toEqual([ids.itemId]);
     expect(listTags(opened, { groupId: ids.groupId }).map((row) => row.id)).toEqual([ids.tagId]);
-    expect(listEntityFields(opened, { entityId: ids.itemId }).map((row) => row.id)).toEqual([ids.fieldId]);
-    expect(listMaintenanceEntries(opened, { entityId: ids.itemId }).map((row) => row.id)).toEqual([
+    expect(listEntityFields(opened, { groupId: ids.groupId, entityId: ids.itemId }).map((row) => row.id)).toEqual([
+      ids.fieldId,
+    ]);
+    expect(listMaintenanceEntries(opened, { groupId: ids.groupId, entityId: ids.itemId }).map((row) => row.id)).toEqual([
       ids.maintenanceId,
     ]);
 
@@ -197,12 +199,12 @@ describe("go-written fixture", () => {
     const before = idStorage(opened, "entities", ids.itemId);
     const createdBefore = item?.createdAt;
     const insuredBefore = item?.insured;
-    updateEntityName(opened, ids.itemId, "Mug renamed");
+    updateEntityName(opened, ids.groupId, ids.itemId, "Mug renamed");
     const after = idStorage(opened, "entities", ids.itemId);
     expect(after).toEqual(before);
     expect(after.t).toBe("blob");
     expect(after.n).toBe(16);
-    const renamed = getEntityById(opened, ids.itemId);
+    const renamed = getEntityById(opened, ids.groupId, ids.itemId);
     expect(renamed?.name).toBe("Mug renamed");
     expect(renamed?.id).toBe(ids.itemId);
     expect(renamed?.createdAt).toBe(createdBefore);
@@ -212,9 +214,9 @@ describe("go-written fixture", () => {
     const legacyBefore = idStorage(opened, "tags", ids.legacyTagId);
     expect(legacyBefore.t).toBe("text");
     expect(legacyBefore.n).toBe(36);
-    updateTagName(opened, ids.legacyTagId, "Legacy renamed");
+    updateTagName(opened, ids.legacyGroupId, ids.legacyTagId, "Legacy renamed");
     expect(idStorage(opened, "tags", ids.legacyTagId)).toEqual(legacyBefore);
-    expect(getTagById(opened, ids.legacyTagId)?.id).toBe(ids.legacyTagId);
+    expect(getTagById(opened, ids.legacyGroupId, ids.legacyTagId)?.id).toBe(ids.legacyTagId);
 
     const schemaAfter = opened.query("SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name").all();
     expect(schemaAfter).toEqual(schemaBefore);
@@ -296,7 +298,7 @@ describe("new rows", () => {
       .get() as { tt: string; tn: number; et: string; en: number };
     expect(link).toEqual({ tt: "blob", tn: 16, et: "blob", en: 16 });
 
-    const item = getEntityById(db, itemId);
+    const item = getEntityById(db, groupId, itemId);
     expect(item?.id).toBe("abcdefab-cdef-4abc-8def-0123456789ab");
     expect(item?.createdAt).toBe(createdAt);
     expect(item?.purchaseDate).toBe(purchaseDate);
@@ -304,20 +306,20 @@ describe("new rows", () => {
     expect(typeof item?.insured).toBe("number");
     expect(item?.parentId).toBe(locationId);
     expect(item?.isLocation).toBe(0);
-    expect(getEntityById(db, locationId)?.isLocation).toBe(1);
-    expect(listEntities(db, { isLocation: true }).map((row) => row.id)).toEqual([locationId]);
-    expect(listEntities(db, { isLocation: false }).map((row) => row.id)).toEqual([itemId]);
-    expect(getTagById(db, tagId)?.id).toBe(tagId);
-    expect(getEntityFieldById(db, fieldId)?.booleanValue).toBe(0);
-    expect(getEntityFieldById(db, fieldId)?.timeValue).toBe(createdAt);
-    expect(getMaintenanceEntryById(db, maintenanceId)?.date).toBe(purchaseDate);
-    expect(listTagIdsForEntity(db, itemId)).toEqual([tagId]);
+    expect(getEntityById(db, groupId, locationId)?.isLocation).toBe(1);
+    expect(listEntities(db, { groupId, isLocation: true }).map((row) => row.id)).toEqual([locationId]);
+    expect(listEntities(db, { groupId, isLocation: false }).map((row) => row.id)).toEqual([itemId]);
+    expect(getTagById(db, groupId, tagId)?.id).toBe(tagId);
+    expect(getEntityFieldById(db, groupId, fieldId)?.booleanValue).toBe(0);
+    expect(getEntityFieldById(db, groupId, fieldId)?.timeValue).toBe(createdAt);
+    expect(getMaintenanceEntryById(db, groupId, maintenanceId)?.date).toBe(purchaseDate);
+    expect(listTagIdsForEntity(db, groupId, itemId)).toEqual([tagId]);
 
     const before = idStorage(db, "entities", itemId);
-    updateEntityName(db, itemId, "Lamp renamed");
+    updateEntityName(db, groupId, itemId, "Lamp renamed");
     expect(idStorage(db, "entities", itemId)).toEqual(before);
-    expect(getEntityById(db, itemId)?.createdAt).toBe(createdAt);
-    expect(getEntityById(db, itemId)?.insured).toBe(1);
+    expect(getEntityById(db, groupId, itemId)?.createdAt).toBe(createdAt);
+    expect(getEntityById(db, groupId, itemId)?.insured).toBe(1);
 
     expect(db.query("SELECT sql FROM sqlite_master WHERE name = 'entities'").get()).toEqual(schemaBefore);
     const schemaSource = readFileSync(resolve(import.meta.dir, "schema.ts"), "utf8");

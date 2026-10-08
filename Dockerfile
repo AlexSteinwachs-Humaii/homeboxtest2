@@ -44,6 +44,7 @@ COPY server/package.json server/bun.lock ./
 COPY server/src ./src
 COPY server/healthcheck.ts ./healthcheck.ts
 COPY backend/internal/data/migrations/sqlite3 ./migrations/sqlite3
+COPY backend/internal/core/currencies/currencies.json ./currencies.json
 # Already-built Vue assets. The Vue source is not rewritten.
 COPY --from=frontend-builder /app/.output/public ./frontend/.output/public
 

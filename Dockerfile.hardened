@@ -54,6 +54,7 @@ COPY --chown=65532:65532 server/package.json server/bun.lock /app/
 COPY --chown=65532:65532 server/src /app/src
 COPY --chown=65532:65532 server/healthcheck.ts /app/healthcheck.ts
 COPY --chown=65532:65532 backend/internal/data/migrations/sqlite3 /app/migrations/sqlite3
+COPY --chown=65532:65532 backend/internal/core/currencies/currencies.json /app/currencies.json
 COPY --from=frontend-builder --chown=65532:65532 /app/.output/public /app/frontend/.output/public
 
 LABEL Name=homebox Version=0.0.1

@@ -15,7 +15,7 @@ import {
   userGroups,
   users,
 } from "./schema.ts";
-import { bytesToUuid, newUuidBytes, sqliteNow, uuidToBytes } from "./storage.ts";
+import { bytesToUuid, canonicalUuid, isUuidText, newUuidBytes, sqliteNow, uuidToBytes } from "./storage.ts";
 
 export type EntityRow = {
   id: string;
@@ -83,9 +83,24 @@ export type MaintenanceRow = {
 };
 
 export type EntityFilter = {
-  groupId?: string;
+  groupId: string;
   isLocation?: boolean;
 };
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+// Authenticated queries must name a group. A missing or nil id is refused
+// rather than falling through to an unscoped read.
+export function requireGroupId(groupId: string | null | undefined): string {
+  if (!groupId || !isUuidText(groupId)) {
+    throw new Error("refusing a query that is not scoped by an authenticated group id");
+  }
+  const canonical = canonicalUuid(groupId);
+  if (canonical === NIL_UUID) {
+    throw new Error("refusing a query that is not scoped by an authenticated group id");
+  }
+  return canonical;
+}
 
 type Orm = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -179,70 +194,104 @@ function mapMaintenance(row: typeof maintenanceEntries.$inferSelect): Maintenanc
   };
 }
 
-export function getEntityById(db: Database, id: string): EntityRow | null {
+export function getEntityById(db: Database, groupId: string, id: string): EntityRow | null {
+  const gid = requireGroupId(groupId);
   const row = orm(db)
     .select({ entity: entities, isLocation: entityTypes.isLocation })
     .from(entities)
     .innerJoin(entityTypes, eq(entities.entityTypeEntities, entityTypes.id))
-    .where(uuidEquals(entities.id, id))
+    .where(and(uuidEquals(entities.id, id), uuidEquals(entities.groupEntities, gid)))
     .get();
   if (!row) return null;
   return mapEntity(row.entity, row.isLocation);
 }
 
-export function listEntities(db: Database, filter: EntityFilter = {}): EntityRow[] {
-  const conditions = [];
-  if (filter.groupId) conditions.push(uuidEquals(entities.groupEntities, filter.groupId));
+export function listEntities(db: Database, filter: EntityFilter): EntityRow[] {
+  const gid = requireGroupId(filter.groupId);
+  const conditions = [uuidEquals(entities.groupEntities, gid)];
   if (filter.isLocation !== undefined) {
     conditions.push(eq(entityTypes.isLocation, filter.isLocation ? 1 : 0));
   }
-  const query = orm(db)
+  const rows = orm(db)
     .select({ entity: entities, isLocation: entityTypes.isLocation })
     .from(entities)
     .innerJoin(entityTypes, eq(entities.entityTypeEntities, entityTypes.id))
-    .orderBy(entities.name);
-  const rows = conditions.length > 0 ? query.where(and(...conditions)).all() : query.all();
+    .where(and(...conditions))
+    .orderBy(entities.name)
+    .all();
   return rows.map((row) => mapEntity(row.entity, row.isLocation));
 }
 
-export function getTagById(db: Database, id: string): TagRow | null {
-  const row = orm(db).select().from(tags).where(uuidEquals(tags.id, id)).get();
+export function getTagById(db: Database, groupId: string, id: string): TagRow | null {
+  const gid = requireGroupId(groupId);
+  const row = orm(db)
+    .select()
+    .from(tags)
+    .where(and(uuidEquals(tags.id, id), uuidEquals(tags.groupTags, gid)))
+    .get();
   return row ? mapTag(row) : null;
 }
 
-export function listTags(db: Database, filter: { groupId?: string } = {}): TagRow[] {
-  const query = orm(db).select().from(tags).orderBy(tags.name);
-  const rows = filter.groupId ? query.where(uuidEquals(tags.groupTags, filter.groupId)).all() : query.all();
+export function listTags(db: Database, filter: { groupId: string }): TagRow[] {
+  const gid = requireGroupId(filter.groupId);
+  const rows = orm(db).select().from(tags).where(uuidEquals(tags.groupTags, gid)).orderBy(tags.name).all();
   return rows.map(mapTag);
 }
 
-export function getEntityFieldById(db: Database, id: string): EntityFieldRow | null {
-  const row = orm(db).select().from(entityFields).where(uuidEquals(entityFields.id, id)).get();
-  return row ? mapField(row) : null;
+export function getEntityFieldById(db: Database, groupId: string, id: string): EntityFieldRow | null {
+  const gid = requireGroupId(groupId);
+  const row = orm(db)
+    .select({ field: entityFields })
+    .from(entityFields)
+    .innerJoin(entities, eq(entityFields.entityFields, entities.id))
+    .where(and(uuidEquals(entityFields.id, id), uuidEquals(entities.groupEntities, gid)))
+    .get();
+  return row ? mapField(row.field) : null;
 }
 
-export function listEntityFields(db: Database, filter: { entityId?: string } = {}): EntityFieldRow[] {
-  const query = orm(db).select().from(entityFields).orderBy(entityFields.name);
-  const rows = filter.entityId
-    ? query.where(uuidEquals(entityFields.entityFields, filter.entityId)).all()
-    : query.all();
-  return rows.map(mapField);
+export function listEntityFields(db: Database, filter: { groupId: string; entityId?: string }): EntityFieldRow[] {
+  const gid = requireGroupId(filter.groupId);
+  const conditions = [uuidEquals(entities.groupEntities, gid)];
+  if (filter.entityId) conditions.push(uuidEquals(entityFields.entityFields, filter.entityId));
+  const rows = orm(db)
+    .select({ field: entityFields })
+    .from(entityFields)
+    .innerJoin(entities, eq(entityFields.entityFields, entities.id))
+    .where(and(...conditions))
+    .orderBy(entityFields.name)
+    .all();
+  return rows.map((row) => mapField(row.field));
 }
 
-export function getMaintenanceEntryById(db: Database, id: string): MaintenanceRow | null {
-  const row = orm(db).select().from(maintenanceEntries).where(uuidEquals(maintenanceEntries.id, id)).get();
-  return row ? mapMaintenance(row) : null;
+export function getMaintenanceEntryById(db: Database, groupId: string, id: string): MaintenanceRow | null {
+  const gid = requireGroupId(groupId);
+  const row = orm(db)
+    .select({ entry: maintenanceEntries })
+    .from(maintenanceEntries)
+    .innerJoin(entities, eq(maintenanceEntries.entityId, entities.id))
+    .where(and(uuidEquals(maintenanceEntries.id, id), uuidEquals(entities.groupEntities, gid)))
+    .get();
+  return row ? mapMaintenance(row.entry) : null;
 }
 
-export function listMaintenanceEntries(db: Database, filter: { entityId?: string } = {}): MaintenanceRow[] {
-  const query = orm(db).select().from(maintenanceEntries).orderBy(maintenanceEntries.name);
-  const rows = filter.entityId
-    ? query.where(uuidEquals(maintenanceEntries.entityId, filter.entityId)).all()
-    : query.all();
-  return rows.map(mapMaintenance);
+export function listMaintenanceEntries(db: Database, filter: { groupId: string; entityId?: string }): MaintenanceRow[] {
+  const gid = requireGroupId(filter.groupId);
+  const conditions = [uuidEquals(entities.groupEntities, gid)];
+  if (filter.entityId) conditions.push(uuidEquals(maintenanceEntries.entityId, filter.entityId));
+  const rows = orm(db)
+    .select({ entry: maintenanceEntries })
+    .from(maintenanceEntries)
+    .innerJoin(entities, eq(maintenanceEntries.entityId, entities.id))
+    .where(and(...conditions))
+    .orderBy(maintenanceEntries.name)
+    .all();
+  return rows.map((row) => mapMaintenance(row.entry));
 }
 
-export function listTagIdsForEntity(db: Database, entityId: string): string[] {
+export function listTagIdsForEntity(db: Database, groupId: string, entityId: string): string[] {
+  const gid = requireGroupId(groupId);
+  const owned = getEntityById(db, gid, entityId);
+  if (!owned) return [];
   const rows = orm(db).select().from(tagEntities).where(uuidEquals(tagEntities.entityId, entityId)).all();
   return rows.map((row) => bytesToUuid(row.tagId));
 }
@@ -512,11 +561,23 @@ export function insertMaintenanceEntry(
   return id.text;
 }
 
-// Changes a non-id column only. The id blob or text is not part of the SET.
-export function updateEntityName(db: Database, id: string, name: string): void {
-  orm(db).update(entities).set({ name }).where(uuidEquals(entities.id, id)).run();
+// Changes a non-id column only, and only inside the group. The id column is not in the SET.
+export function updateEntityName(db: Database, groupId: string, id: string, name: string): boolean {
+  const gid = requireGroupId(groupId);
+  const result = orm(db)
+    .update(entities)
+    .set({ name })
+    .where(and(uuidEquals(entities.id, id), uuidEquals(entities.groupEntities, gid)))
+    .run();
+  return result.changes > 0;
 }
 
-export function updateTagName(db: Database, id: string, name: string): void {
-  orm(db).update(tags).set({ name }).where(uuidEquals(tags.id, id)).run();
+export function updateTagName(db: Database, groupId: string, id: string, name: string): boolean {
+  const gid = requireGroupId(groupId);
+  const result = orm(db)
+    .update(tags)
+    .set({ name })
+    .where(and(uuidEquals(tags.id, id), uuidEquals(tags.groupTags, gid)))
+    .run();
+  return result.changes > 0;
 }
