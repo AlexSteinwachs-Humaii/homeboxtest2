@@ -44,6 +44,8 @@ const GROUPS_PATH = "/api/v1/groups/all";
 const ENTITY_TYPES_PATH = "/api/v1/entity-types";
 const ENTITIES_PATH = "/api/v1/entities";
 const TREE_PATH = "/api/v1/entities/tree";
+const ASSETS_PATH = "/api/v1/assets";
+const BARCODE_PATH = "/api/v1/products/search-from-barcode";
 
 const URL_SUFFIXES = ["/api/v1/users/login", "/api/v1"];
 
@@ -183,6 +185,12 @@ export type EntitySummary = {
   entityTypeName: string | null;
   isLocation: boolean;
   itemCount: number;
+};
+
+export type BarcodeProduct = {
+  barcode: string;
+  name: string;
+  source: string;
 };
 
 export type EntityAttachment = {
@@ -332,6 +340,47 @@ export class HomeboxClient {
       parse: readEntityList,
       failure: isLocation ? "The server did not return locations." : "The server did not return items.",
       malformed: isLocation ? "The server did not return locations." : "The server did not return items.",
+    });
+  }
+
+  // The query is sent as typed. Accent folding is the server's search, not a
+  // second pass on the phone. Omitting page returns every match, same as the list.
+  searchEntities(query: string): Promise<ApiResult<EntitySummary[]>> {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    return this.request(`${ENTITIES_PATH}?${params.toString()}`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readEntityList,
+      failure: "The server did not return search results.",
+      malformed: "The server did not return search results.",
+    });
+  }
+
+  // Asset labels are /a/{assetId}. The server only returns this collection's rows.
+  listByAssetId(assetId: string): Promise<ApiResult<EntitySummary[]>> {
+    return this.request(`${ASSETS_PATH}/${encodeURIComponent(assetId)}`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readEntityList,
+      failure: "The server did not return this label.",
+      malformed: "The server did not return this label.",
+    });
+  }
+
+  // Product barcodes are a catalog lookup, not an inventory create.
+  searchFromBarcode(productEAN: string): Promise<ApiResult<BarcodeProduct[]>> {
+    const params = new URLSearchParams();
+    params.set("productEAN", productEAN);
+    return this.request(`${BARCODE_PATH}?${params.toString()}`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readBarcodeProducts,
+      failure: "The server did not look up this barcode.",
+      malformed: "The server did not look up this barcode.",
     });
   }
 
@@ -564,6 +613,21 @@ function readEntityTypes(data: unknown): EntityTypeSummary[] | null {
 function readEntityList(data: unknown): EntitySummary[] | null {
   if (!isRecord(data) || !Array.isArray(data.items)) return null;
   return data.items.map(readSummary).filter((item): item is EntitySummary => item !== null);
+}
+
+function readBarcodeProducts(data: unknown): BarcodeProduct[] | null {
+  if (!Array.isArray(data)) return null;
+  const products: BarcodeProduct[] = [];
+  for (const row of data) {
+    if (!isRecord(row)) continue;
+    const item = isRecord(row.item) ? row.item : null;
+    products.push({
+      barcode: text(row.barcode),
+      name: item && typeof item.name === "string" ? item.name : "",
+      source: text(row.search_engine_name),
+    });
+  }
+  return products;
 }
 
 function readSummary(data: unknown): EntitySummary | null {

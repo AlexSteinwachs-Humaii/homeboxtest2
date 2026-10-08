@@ -28,6 +28,14 @@ Creating or editing an item calls `POST` or `PUT /api/v1/entities`, then reads t
 
 If the account belongs to more than one collection, the chips at the top switch collection. Inventory requests send that id as `X-Tenant`, the same header the website's collection selector sends. The phone does not filter another collection's rows itself.
 
+## Search and scan
+
+The search field calls `GET /api/v1/entities?q=` with the text as typed. Accent folding is the server's search. The phone does not rewrite the query, and it does not filter the list it already loaded.
+
+Scan opens the camera for a barcode or QR label, and keeps a text field for when the camera cannot read the code. A HomeBox label (`/item/{id}`, `/location/{id}`, or `/a/{assetId}`) is looked up on the signed-in server with `X-Tenant`. The host printed on the label does not have to match the address used to sign in. A code from another collection is a no-match; that item is not opened.
+
+A product barcode that is not already an item calls `GET /api/v1/products/search-from-barcode` and then shows that nothing in this collection matched. The app does not create an item from the catalog.
+
 ## Photos
 
 On an item, Take photo or Choose from library uploads the file with `POST /api/v1/entities/{id}/attachments` (`file`, `name`, `type=photo`, `primary`). The camera-roll copy is only a temporary upload source. HEIC is sent as the device provides it; the server makes the thumbnail.

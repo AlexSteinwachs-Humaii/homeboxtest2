@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { HomeboxClient, type EntityDetail } from "../api/client";
+import { HomeboxClient, type EntityDetail, type EntitySummary } from "../api/client";
 import { createItem, createLocation, loadInventory, updateItem, type InventorySnapshot } from "../inventory/inventory";
 import { attachPhoto, displayAttachmentId } from "../photos/photos";
 import { pickPhoto, takePhoto } from "../photos/picker";
+import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
 import type { Account, StoredSession } from "../session/session";
 import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
 import { ItemDetailScreen, type ServerPhoto } from "./ItemDetailScreen";
 import { ItemEditorScreen, type EditorValues } from "./ItemEditorScreen";
+import { ScanScreen } from "./ScanScreen";
 
 type Props = {
   account: Account;
@@ -23,6 +25,7 @@ type View =
   | { name: "location"; id: string }
   | { name: "edit-item"; id: string | null; parentId: string | null }
   | { name: "edit-location"; parentId: string | null }
+  | { name: "scan" }
   | { name: "account" };
 
 export function InventoryApp({ account, session, busy, onSignOut }: Props) {
@@ -42,6 +45,12 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<EntitySummary[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchTicket = useRef(0);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reload = useCallback(
     async (preferred: string, clearFirst: boolean) => {
@@ -67,6 +76,32 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   useEffect(() => {
     void reload(account.defaultGroupId, true);
   }, [account.defaultGroupId, reload]);
+
+  async function runSearch(text: string, activeGroup: string) {
+    const ticket = ++searchTicket.current;
+    if (text.trim() === "") {
+      setSearching(false);
+      setSearchResults(null);
+      setSearchError(null);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+    const result = await searchItems(client, activeGroup, text);
+    if (ticket !== searchTicket.current) return;
+    setSearching(false);
+    if (!result.ok) {
+      setSearchResults([]);
+      setSearchError(result.message);
+      return;
+    }
+    setSearchResults(result.items);
+  }
+
+  function openMatch(match: ScanMatch) {
+    void openEntity(match.id, match.kind === "location" ? "location" : "item");
+  }
 
   async function openEntity(id: string, kind: "item" | "location") {
     setView(kind === "item" ? { name: "item", id } : { name: "location", id });
@@ -190,6 +225,17 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     return <AccountScreen account={account} busy={busy} onSignOut={onSignOut} onBack={() => setView({ name: "list", tab: "items" })} />;
   }
 
+  if (view.name === "scan") {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    return (
+      <ScanScreen
+        onBack={() => setView({ name: "list", tab: "items" })}
+        onLookup={(code) => resolveCode(client, activeGroup, code)}
+        onOpen={openMatch}
+      />
+    );
+  }
+
   if (view.name === "edit-item" || view.name === "edit-location") {
     const editing = view.name === "edit-item" && view.id && detail?.id === view.id ? detail : null;
     return (
@@ -242,6 +288,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   }
 
   const groupName = snapshot?.groups.find((group) => group.id === (snapshot?.groupId ?? groupId))?.name ?? "Collection";
+  const searchActive = query.trim() !== "" && searchResults !== null;
 
   return (
     <InventoryScreen
@@ -250,15 +297,48 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
       groups={snapshot?.groups ?? []}
       groupId={snapshot?.groupId ?? groupId}
       tab={view.tab}
-      items={snapshot?.items ?? []}
+      items={searchActive ? (searchResults ?? []) : (snapshot?.items ?? [])}
       locations={snapshot?.locations ?? []}
       tree={snapshot?.tree ?? []}
       loading={loading}
       refreshing={refreshing}
-      error={error}
-      onRefresh={() => void reload(snapshot?.groupId ?? groupId, false)}
+      error={searchActive ? searchError : error}
+      query={query}
+      searchActive={searchActive}
+      searching={searching}
+      onQueryChange={(value) => {
+        setQuery(value);
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        const activeGroup = snapshot?.groupId ?? groupId;
+        if (value.trim() === "") {
+          searchTicket.current += 1;
+          setSearching(false);
+          setSearchResults(null);
+          setSearchError(null);
+          return;
+        }
+        searchTimer.current = setTimeout(() => {
+          void runSearch(value, activeGroup);
+        }, 300);
+      }}
+      onSubmitSearch={() => {
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        void runSearch(query, snapshot?.groupId ?? groupId);
+      }}
+      onScan={() => setView({ name: "scan" })}
+      onRefresh={() => {
+        const activeGroup = snapshot?.groupId ?? groupId;
+        if (query.trim() !== "") void runSearch(query, activeGroup);
+        else void reload(activeGroup, false);
+      }}
       onSelectGroup={(id) => {
         setGroupId(id);
+        setQuery("");
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTicket.current += 1;
+        setSearching(false);
+        setSearchResults(null);
+        setSearchError(null);
         setView({ name: "list", tab: view.tab });
         void reload(id, true);
       }}

@@ -26,8 +26,17 @@
         "expo-image-picker",
         {
           "photosPermission": "HomeBox attaches photos you pick to items on your server.",
-          "cameraPermission": "HomeBox uses the camera to photograph items and store them on your server.",
+          "cameraPermission": "HomeBox uses the camera to photograph items and to scan barcodes and QR labels.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "HomeBox uses the camera to photograph items and to scan barcodes and QR labels.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
         }
       ]
     ],

@@ -1,4 +1,4 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntitySummary, GroupSummary, TreeNode } from "../api/client";
@@ -18,6 +18,12 @@ type Props = {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  query: string;
+  searchActive: boolean;
+  searching: boolean;
+  onQueryChange: (value: string) => void;
+  onSubmitSearch: () => void;
+  onScan: () => void;
   onRefresh: () => void;
   onSelectGroup: (id: string) => void;
   onSelectTab: (tab: Tab) => void;
@@ -30,6 +36,7 @@ type Props = {
 };
 
 export function InventoryScreen(props: Props) {
+  const showingItems = props.searchActive || props.tab === "items";
   const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
 
   return (
@@ -76,6 +83,23 @@ export function InventoryScreen(props: Props) {
         <TabButton label="Locations" selected={props.tab === "locations"} onPress={() => props.onSelectTab("locations")} />
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          value={props.query}
+          onChangeText={props.onQueryChange}
+          onSubmitEditing={props.onSubmitSearch}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Search items"
+          placeholderTextColor={colors.muted}
+          returnKeyType="search"
+          style={styles.searchInput}
+        />
+        <Pressable accessibilityRole="button" onPress={props.onScan} style={styles.scanButton}>
+          <Text style={styles.scanButtonText}>Scan</Text>
+        </Pressable>
+      </View>
+
       {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
 
       <ScrollView
@@ -91,15 +115,25 @@ export function InventoryScreen(props: Props) {
 
         {props.loading && !props.refreshing ? <Text style={styles.empty}>Loading from the server…</Text> : null}
 
-        {!props.loading && props.tab === "items" && props.items.length === 0 ? (
-          <Text style={styles.empty}>{props.error ? "No items to show until the server answers." : "No items in this collection yet."}</Text>
+        {!props.loading && showingItems && props.items.length === 0 ? (
+          <Text style={styles.empty}>
+            {props.searchActive
+              ? props.searching
+                ? "Searching the server…"
+                : props.error
+                  ? "No items to show until the server answers."
+                  : "No items match this search."
+              : props.error
+                ? "No items to show until the server answers."
+                : "No items in this collection yet."}
+          </Text>
         ) : null}
 
-        {!props.loading && props.tab === "locations" && locationRows.length === 0 ? (
+        {!props.loading && !showingItems && locationRows.length === 0 ? (
           <Text style={styles.empty}>{props.error ? "No locations to show until the server answers." : "No locations yet. Add one to file an item in it."}</Text>
         ) : null}
 
-        {props.tab === "items"
+        {showingItems
           ? props.items.map((item) => (
               <Pressable key={item.id} accessibilityRole="button" onPress={() => props.onOpenItem(item.id)} style={styles.row}>
                 <View style={styles.rowCopy}>
@@ -179,6 +213,20 @@ const styles = StyleSheet.create({
   chipText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   chipTextSelected: { color: colors.onPrimary },
   tabs: { flexDirection: "row", marginHorizontal: 20, marginTop: 14, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 4 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 12 },
+  searchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.input,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  scanButton: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  scanButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "700" },
   tab: { flex: 1, alignItems: "center", borderRadius: 9, paddingVertical: 8 },
   tabSelected: { backgroundColor: colors.primary },
   tabText: { fontSize: 15, fontWeight: "600", color: colors.muted },
