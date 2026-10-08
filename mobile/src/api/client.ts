@@ -143,6 +143,12 @@ function readRefreshResponse(data: unknown): RefreshResponse | null {
 async function errorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const body = (await response.json()) as unknown;
+    if (Array.isArray(body)) {
+      const parts = body
+        .map((item) => (isRecord(item) && typeof item.error === "string" ? item.error : ""))
+        .filter((item) => item !== "");
+      if (parts.length > 0) return parts.join(" ");
+    }
     if (isRecord(body) && typeof body.error === "string" && body.error !== "" && body.error !== "unauthorized") {
       return body.error;
     }
@@ -179,11 +185,33 @@ export type EntitySummary = {
   itemCount: number;
 };
 
+export type EntityAttachment = {
+  id: string;
+  type: string;
+  title: string;
+  mimeType: string;
+  path: string;
+  primary: boolean;
+  thumbnailId: string | null;
+};
+
 export type EntityDetail = EntitySummary & {
   notes: string;
   manufacturer: string;
   modelNumber: string;
+  attachments: EntityAttachment[];
   raw: Record<string, unknown>;
+};
+
+// A picked photo. `uri` is the temporary camera-roll file React Native can upload.
+// `bytes` is the same file for tests and for any caller that already has the contents.
+// Neither is an inventory record — the server attachment is.
+export type AttachmentUpload = {
+  filename: string;
+  mimeType: string;
+  bytes?: Uint8Array;
+  uri?: string;
+  primary?: boolean;
 };
 
 export type TreeNode = {
@@ -360,6 +388,82 @@ export class HomeboxClient {
     });
   }
 
+  // Same multipart fields as the website: file, name, type, primary.
+  // Content-Type is left unset so the boundary is generated with the body.
+  async addAttachment(entityId: string, file: AttachmentUpload): Promise<ApiResult<EntityAttachment[]>> {
+    if (!file.uri && (!file.bytes || file.bytes.byteLength === 0)) {
+      return { ok: false, status: 0, error: "Choose a photo before uploading." };
+    }
+    const filename = file.filename.trim();
+    if (!filename) {
+      return { ok: false, status: 0, error: "The photo needs a file name before it can be stored." };
+    }
+    const authorization = authorizationHeader(this.token);
+    if (!authorization) {
+      return { ok: false, status: 401, error: "Sign in before continuing." };
+    }
+    if (!this.groupId) {
+      return { ok: false, status: 0, error: "Choose a collection before loading inventory." };
+    }
+
+    const form = new FormData();
+    const mimeType = file.mimeType || "application/octet-stream";
+    if (file.uri) {
+      // React Native reads this shape as a file part and uploads the bytes the
+      // camera or library produced. Do not re-encode them here.
+      form.append("file", { uri: file.uri, name: filename, type: mimeType } as unknown as Blob);
+    } else {
+      form.append("file", new File([file.bytes as BlobPart], filename, { type: mimeType }));
+    }
+    form.append("name", filename);
+    form.append("type", "photo");
+    form.append("primary", file.primary === false ? "false" : "true");
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      Authorization: authorization,
+      "X-Tenant": this.groupId,
+    };
+    const init: RequestInit = {
+      method: "POST",
+      headers,
+      body: form,
+      credentials: "omit",
+    };
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+      init.signal = AbortSignal.timeout(60_000);
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.serverUrl}${ENTITIES_PATH}/${encodeURIComponent(entityId)}/attachments`, init);
+    } catch {
+      return { ok: false, status: 0, error: "Could not reach the server. The photo was not saved." };
+    }
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: await errorMessage(response, "The server did not store this photo.") };
+    }
+
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      return { ok: false, status: response.status, error: "The server did not confirm the photo. It is not shown as saved." };
+    }
+    return { ok: true, status: response.status, data: readAttachments(data) };
+  }
+
+  // Image views cannot set Authorization. The login attachment token is the
+  // access_token query the server already accepts for this route.
+  attachmentUrl(entityId: string, attachmentId: string, attachmentToken: string): string {
+    const url = new URL(
+      `${this.serverUrl}/api/v1/entities/${encodeURIComponent(entityId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    );
+    if (attachmentToken) url.searchParams.set("access_token", attachmentToken);
+    if (this.groupId) url.searchParams.set("tenant", this.groupId);
+    return url.toString();
+  }
+
   private async request<T>(
     path: string,
     options: {
@@ -490,7 +594,32 @@ function readEntityDetail(data: unknown): EntityDetail | null {
     notes: text(data.notes),
     manufacturer: text(data.manufacturer),
     modelNumber: text(data.modelNumber),
+    attachments: readAttachments(data),
     raw: data,
+  };
+}
+
+export function readAttachments(data: unknown): EntityAttachment[] {
+  if (!isRecord(data) || !Array.isArray(data.attachments)) return [];
+  const attachments: EntityAttachment[] = [];
+  for (const row of data.attachments) {
+    const parsed = readAttachment(row);
+    if (parsed && parsed.type !== "thumbnail") attachments.push(parsed);
+  }
+  return attachments;
+}
+
+function readAttachment(data: unknown): EntityAttachment | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+  const thumbnail = isRecord(data.thumbnail) && typeof data.thumbnail.id === "string" ? data.thumbnail.id : null;
+  return {
+    id: data.id,
+    type: text(data.type) || "attachment",
+    title: text(data.title),
+    mimeType: text(data.mimeType),
+    path: text(data.path),
+    primary: data.primary === true,
+    thumbnailId: thumbnail,
   };
 }
 

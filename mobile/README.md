@@ -28,6 +28,12 @@ Creating or editing an item calls `POST` or `PUT /api/v1/entities`, then reads t
 
 If the account belongs to more than one collection, the chips at the top switch collection. Inventory requests send that id as `X-Tenant`, the same header the website's collection selector sends. The phone does not filter another collection's rows itself.
 
+## Photos
+
+On an item, Take photo or Choose from library uploads the file with `POST /api/v1/entities/{id}/attachments` (`file`, `name`, `type=photo`, `primary`). The camera-roll copy is only a temporary upload source. HEIC is sent as the device provides it; the server makes the thumbnail.
+
+The item screen then shows the attachment from a fresh `GET /api/v1/entities/{id}`. The image itself is `GET /api/v1/entities/{id}/attachments/{attachmentId}` with the login `attachmentToken` as `access_token` and the collection as `tenant`. A failed upload shows the error and does not add a local photo. After a reinstall, the same item still shows the file as long as the server has it.
+
 ## Tests
 
 ```bash

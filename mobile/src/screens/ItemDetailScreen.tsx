@@ -1,13 +1,22 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntityDetail, EntitySummary } from "../api/client";
 import { colors } from "../theme";
 
+export type ServerPhoto = {
+  id: string;
+  title: string;
+  url: string | null;
+};
+
 type Props = {
   kind: "item" | "location";
   detail: EntityDetail | null;
   filedItems: EntitySummary[];
+  photos: ServerPhoto[];
+  uploadingPhoto: boolean;
+  photoError: string | null;
   loading: boolean;
   refreshing: boolean;
   error: string | null;
@@ -16,6 +25,8 @@ type Props = {
   onEdit?: () => void;
   onFileHere?: () => void;
   onOpenItem?: (id: string) => void;
+  onTakePhoto?: () => void;
+  onPickPhoto?: () => void;
 };
 
 export function ItemDetailScreen(props: Props) {
@@ -47,6 +58,44 @@ export function ItemDetailScreen(props: Props) {
             {props.kind === "item" ? <Row label="Quantity" value={String(detail.quantity)} /> : null}
             <Row label="Filed in" value={detail.parentName ?? "Not filed in a location"} />
             <Row label="Description" value={detail.description || "No description"} last />
+          </View>
+        ) : null}
+
+        {props.kind === "item" && detail ? (
+          <View style={styles.photos}>
+            <Text style={styles.section}>Photos</Text>
+            <Text style={styles.note}>Stored by the server. Opening this item again loads them from there, not from the camera roll.</Text>
+            {props.photoError ? <Text style={styles.error}>{props.photoError}</Text> : null}
+            {props.uploadingPhoto ? <Text style={styles.note}>Uploading to the server…</Text> : null}
+            {props.photos.length === 0 && !props.uploadingPhoto ? <Text style={styles.note}>No photo on the server yet.</Text> : null}
+            {props.photos.map((photo) => (
+              <View key={photo.id} style={styles.photoCard}>
+                {photo.url ? (
+                  <Image source={{ uri: photo.url }} style={styles.photo} accessibilityLabel={photo.title} />
+                ) : (
+                  <Text style={styles.note}>The server has this photo, but this session cannot display it.</Text>
+                )}
+                <Text style={styles.photoTitle}>{photo.title}</Text>
+              </View>
+            ))}
+            <View style={styles.photoActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={props.uploadingPhoto}
+                onPress={props.onTakePhoto}
+                style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed, props.uploadingPhoto && styles.disabled]}
+              >
+                <Text style={styles.secondaryText}>Take photo</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={props.uploadingPhoto}
+                onPress={props.onPickPhoto}
+                style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed, props.uploadingPhoto && styles.disabled]}
+              >
+                <Text style={styles.secondaryText}>Choose from library</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -112,6 +161,15 @@ const styles = StyleSheet.create({
   filed: { marginTop: 8 },
   section: { marginTop: 18, fontSize: 13, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", color: colors.muted },
   row: { marginTop: 8, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14, paddingVertical: 12 },
+  photos: { marginTop: 8 },
+  photoCard: { marginTop: 12, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
+  photo: { width: "100%", height: 220, backgroundColor: colors.line },
+  photoTitle: { paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: colors.muted },
+  photoActions: { marginTop: 12, gap: 8 },
+  secondary: { borderRadius: 12, borderWidth: 1, borderColor: colors.primary, paddingVertical: 12, alignItems: "center", backgroundColor: colors.card },
+  secondaryPressed: { backgroundColor: colors.background },
+  secondaryText: { color: colors.primary, fontSize: 16, fontWeight: "700" },
+  disabled: { opacity: 0.5 },
   rowTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
   rowMeta: { marginTop: 2, fontSize: 14, color: colors.muted },
   footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },

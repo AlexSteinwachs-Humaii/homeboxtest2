@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { HomeboxClient, type EntityDetail } from "../api/client";
 import { createItem, createLocation, loadInventory, updateItem, type InventorySnapshot } from "../inventory/inventory";
+import { attachPhoto, displayAttachmentId } from "../photos/photos";
+import { pickPhoto, takePhoto } from "../photos/picker";
 import type { Account, StoredSession } from "../session/session";
 import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
-import { ItemDetailScreen } from "./ItemDetailScreen";
+import { ItemDetailScreen, type ServerPhoto } from "./ItemDetailScreen";
 import { ItemEditorScreen, type EditorValues } from "./ItemEditorScreen";
 
 type Props = {
@@ -26,6 +28,7 @@ type View =
 export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const client = useMemo(() => new HomeboxClient(session.serverUrl, session.token), [session.serverUrl, session.token]);
   const generation = useRef(0);
+  const photoTicket = useRef(0);
   const [groupId, setGroupId] = useState(account.defaultGroupId);
   const [snapshot, setSnapshot] = useState<InventorySnapshot | null>(null);
   const [view, setView] = useState<View>({ name: "list", tab: "items" });
@@ -37,6 +40,8 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const reload = useCallback(
     async (preferred: string, clearFirst: boolean) => {
@@ -67,6 +72,9 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     setView(kind === "item" ? { name: "item", id } : { name: "location", id });
     setDetail(null);
     setDetailError(null);
+    photoTicket.current += 1;
+    setPhotoError(null);
+    setUploadingPhoto(false);
     setDetailLoading(true);
     client.setGroup(groupId);
     const result = await client.getEntity(id);
@@ -116,8 +124,44 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
       return;
     }
     setDetail(result.data);
+    setPhotoError(null);
     setView({ name: "item", id: result.data.id });
     void reload(snapshot.groupId, false);
+  }
+
+  async function uploadPicked(photo: { filename: string; mimeType: string; uri: string }) {
+    if (view.name !== "item" || !detail || detail.id !== view.id) return;
+    const ticket = ++photoTicket.current;
+    const entityId = view.id;
+    const previousIds = detail.attachments.map((item) => item.id);
+    setUploadingPhoto(true);
+    setPhotoError(null);
+    const result = await attachPhoto(client, snapshot?.groupId ?? groupId, entityId, photo, previousIds);
+    if (ticket !== photoTicket.current) return;
+    setUploadingPhoto(false);
+    if (!result.ok) {
+      setPhotoError(result.message);
+      return;
+    }
+    setDetail(result.data);
+  }
+
+  async function onTakePhoto() {
+    const picked = await takePhoto();
+    if (!picked.ok) {
+      if (!picked.cancelled) setPhotoError(picked.message);
+      return;
+    }
+    await uploadPicked(picked.photo);
+  }
+
+  async function onPickPhoto() {
+    const picked = await pickPhoto();
+    if (!picked.ok) {
+      if (!picked.cancelled) setPhotoError(picked.message);
+      return;
+    }
+    await uploadPicked(picked.photo);
   }
 
   async function saveLocation(values: EditorValues) {
@@ -175,9 +219,14 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
         filedItems={filed}
         loading={detailLoading}
         refreshing={refreshing}
+        photos={view.name === "item" && detail?.id === view.id ? serverPhotos(detail, client, session.attachmentToken) : []}
+        uploadingPhoto={uploadingPhoto}
+        photoError={photoError}
         error={detailError}
         onBack={() => setView({ name: "list", tab: view.name === "item" ? "items" : "locations" })}
         onRefresh={() => void refreshDetail(view.id)}
+        onTakePhoto={view.name === "item" ? () => void onTakePhoto() : undefined}
+        onPickPhoto={view.name === "item" ? () => void onPickPhoto() : undefined}
         onEdit={view.name === "item" && detail?.id === view.id ? () => setView({ name: "edit-item", id: view.id, parentId: detail.parentId }) : undefined}
         onFileHere={
           view.name === "location"
@@ -228,4 +277,14 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
       onSignOut={onSignOut}
     />
   );
+}
+
+function serverPhotos(detail: EntityDetail, client: HomeboxClient, attachmentToken: string): ServerPhoto[] {
+  return detail.attachments
+    .filter((item) => item.type === "photo")
+    .map((item) => ({
+      id: item.id,
+      title: item.title || "Photo",
+      url: attachmentToken ? client.attachmentUrl(detail.id, displayAttachmentId(item), attachmentToken) : null,
+    }));
 }
