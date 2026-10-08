@@ -12,6 +12,7 @@ import {
   type AttachmentServiceOptions,
 } from "../attachments/service.ts";
 import { formatSqliteDateTime } from "../db/storage.ts";
+import { searchEntities } from "../search/entities.ts";
 import { authorize, jsonError, type Actor } from "./guard.ts";
 import { isSupportedCurrency } from "./currencies.ts";
 import {
@@ -92,8 +93,11 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
   app.get("/api/v1/entities", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
-    const location = new URL(c.req.url).searchParams.get("location");
+    const params = new URL(c.req.url).searchParams;
+    const location = params.get("location");
     const isLocation = location === null ? undefined : location === "true" || location === "1";
+    const q = params.get("q");
+    if (q) return Response.json(searchEntities(db, { groupId: actor.groupId, isLocation, search: q }));
     return Response.json(listEntitiesForGroup(db, actor.groupId, isLocation));
   });
 
