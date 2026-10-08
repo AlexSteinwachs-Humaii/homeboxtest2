@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import type { Database } from "bun:sqlite";
 
+import { schema } from "./db/schema.ts";
 import { StartupError } from "./errors.ts";
 
 const UUID_TABLES = ["entities", "users", "groups"] as const;
@@ -79,7 +80,7 @@ export function attachDatabase(db: Database): { orm: ReturnType<typeof drizzle>;
   }
 
   mappingCommitted = true;
-  const orm = drizzle(db);
+  const orm = drizzle(db, { schema });
   drizzleAttached = true;
   return { orm, observations };
 }
