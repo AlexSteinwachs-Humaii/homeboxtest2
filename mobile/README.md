@@ -85,7 +85,9 @@ cd mobile
 pnpm exec expo start --web
 ```
 
-`app/index.web.tsx` and `app/index.tsx` both import item list, item detail, item edit, locations, search, photo attach, and maintenance from `src/screens/inventory-ui`. The web build renders those with react-native-web. The camera scanner and secure storage are the only platform-specific files (`ScanScreen.web.tsx`, `session/secure.web.ts`).
+`app/index.web.tsx` and `app/index.tsx` both import item list, item detail, item edit, locations, search, photo attach, and maintenance from `src/screens/inventory-ui`. The web build renders those with react-native-web. Layouts are not forked. Platform files are the camera scanner (`ScanScreen.web.tsx`), secure storage (`session/secure.web.ts`), and the browser photo picker (`photos/picker.web.ts`).
+
+On the website, sign in against the Bun server (the address is the page origin when the export was built with `EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same`). The collection chips send `X-Tenant`, the same header the Vue collection selector used. New collection calls `POST /api/v1/groups` and then loads that collection's inventory. Search sends the query as typed. Attach a photo is a file input; the bytes still go to `POST /api/v1/entities/{id}/attachments`. Maintenance is scheduled on the item and marked complete from the shared maintenance screen.
 
 The production container serves `pnpm run export:web` (`expo export --platform web`) from the Bun process on port 7745. That export is static files under `/app/web`. It does not include the Nuxt app, and the browser does not open `homebox.db`. Inventory calls go to same-origin `/api/v1` on the Bun server (`EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same` is set only for that export). There are no Expo Router API routes.
 
@@ -97,5 +99,12 @@ pnpm test
 ```
 
 The phone tests mock `/api/v1`, including login and inventory. A Bun test in `server/src/contract/mobile-inventory.test.ts` runs the same client against the server and checks the new entity row. They also assert this package does not embed an inventory database.
+
+The browser walk is `server/src/web-inventory.browser.test.ts`. Export the web client, then run it against the Bun server (it checks SQLite for the new item, the photo, and the completed maintenance row):
+
+```bash
+cd mobile && EXPO_PUBLIC_HOMEBOX_API_ORIGIN=same pnpm run export:web
+cd ../server && HBOX_WEB_BROWSER=1 bun test src/web-inventory.browser.test.ts
+```
 
 Plain HTTP is allowed because self-hosted servers are often on a LAN without TLS. Do not point the app at a server you do not trust.

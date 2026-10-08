@@ -301,6 +301,14 @@ describe("registration and password reset", () => {
       expect(row.password.startsWith("$argon2id$")).toBe(true);
       const group = fixture.db.query(`SELECT name FROM groups`).get() as { name: string };
       expect(group.name).toBe("Ada's Home");
+      const types = fixture.db.query(`SELECT name, is_location FROM entity_types ORDER BY is_location, name`).all() as Array<{
+        name: string;
+        is_location: number;
+      }>;
+      expect(types).toEqual([
+        { name: "Item", is_location: 0 },
+        { name: "Location", is_location: 1 },
+      ]);
 
       const short = await app.request("http://127.0.0.1:7745/api/v1/users/register", {
         method: "POST",

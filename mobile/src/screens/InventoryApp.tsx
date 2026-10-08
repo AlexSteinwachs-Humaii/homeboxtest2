@@ -6,6 +6,7 @@ import { completeMaintenance, loadMaintenance } from "../maintenance/maintenance
 import { attachPhoto, displayAttachmentId } from "../photos/photos";
 import { pickPhoto, takePhoto } from "../photos/picker";
 import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
+import { readPreferredCollection, writePreferredCollection } from "../session/collection";
 import type { Account, StoredSession } from "../session/session";
 import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
@@ -33,7 +34,11 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const client = useMemo(() => new HomeboxClient(session.serverUrl, session.token), [session.serverUrl, session.token]);
   const generation = useRef(0);
   const photoTicket = useRef(0);
-  const [groupId, setGroupId] = useState(account.defaultGroupId);
+  const [groupId, setGroupId] = useState(() => readPreferredCollection() || account.defaultGroupId);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [schedulingMaintenance, setSchedulingMaintenance] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<InventorySnapshot | null>(null);
   const [view, setView] = useState<View>({ name: "list", tab: "items" });
   const [loading, setLoading] = useState(true);
@@ -81,7 +86,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   );
 
   useEffect(() => {
-    void reload(account.defaultGroupId, true);
+    void reload(readPreferredCollection() || account.defaultGroupId, true);
   }, [account.defaultGroupId, reload]);
 
   async function runSearch(text: string, activeGroup: string) {
@@ -117,8 +122,9 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     photoTicket.current += 1;
     setPhotoError(null);
     setUploadingPhoto(false);
+    setMaintenanceMessage(null);
     setDetailLoading(true);
-    client.setGroup(groupId);
+    client.setGroup(snapshot?.groupId ?? groupId);
     const result = await client.getEntity(id);
     setDetailLoading(false);
     if (!result.ok) {
@@ -132,7 +138,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   async function refreshDetail(id: string) {
     setRefreshing(true);
     setDetailError(null);
-    client.setGroup(groupId);
+    client.setGroup(snapshot?.groupId ?? groupId);
     const result = await client.getEntity(id);
     setRefreshing(false);
     if (!result.ok) {
@@ -171,7 +177,7 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     void reload(snapshot.groupId, false);
   }
 
-  async function uploadPicked(photo: { filename: string; mimeType: string; uri: string }) {
+  async function uploadPicked(photo: { filename: string; mimeType: string; uri?: string; bytes?: Uint8Array }) {
     if (view.name !== "item" || !detail || detail.id !== view.id) return;
     const ticket = ++photoTicket.current;
     const entityId = view.id;
@@ -204,6 +210,39 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
       return;
     }
     await uploadPicked(picked.photo);
+  }
+
+  async function onCreateGroup(name: string) {
+    setCreatingGroup(true);
+    setGroupError(null);
+    const result = await client.createGroup(name);
+    setCreatingGroup(false);
+    if (!result.ok) {
+      setGroupError(result.error);
+      return;
+    }
+    writePreferredCollection(result.data.id);
+    setGroupId(result.data.id);
+    setQuery("");
+    searchTicket.current += 1;
+    setSearchResults(null);
+    setSearchError(null);
+    setView({ name: "list", tab: "items" });
+    void reload(result.data.id, true);
+  }
+
+  async function onScheduleMaintenance(name: string) {
+    if (view.name !== "item") return;
+    setSchedulingMaintenance(true);
+    setMaintenanceMessage(null);
+    client.setGroup(snapshot?.groupId ?? groupId);
+    const result = await client.createMaintenance(view.id, name);
+    setSchedulingMaintenance(false);
+    if (!result.ok) {
+      setMaintenanceMessage(result.error);
+      return;
+    }
+    setMaintenanceMessage("Scheduled on the server. Open Maintenance to mark it complete.");
   }
 
   async function refreshMaintenance(activeGroup: string) {
@@ -345,6 +384,10 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
         onRefresh={() => void refreshDetail(view.id)}
         onTakePhoto={view.name === "item" ? () => void onTakePhoto() : undefined}
         onPickPhoto={view.name === "item" ? () => void onPickPhoto() : undefined}
+        onWebFile={view.name === "item" ? (file) => void uploadPicked(file) : undefined}
+        onScheduleMaintenance={view.name === "item" ? (name) => void onScheduleMaintenance(name) : undefined}
+        schedulingMaintenance={schedulingMaintenance}
+        maintenanceMessage={maintenanceMessage}
         onEdit={view.name === "item" && detail?.id === view.id ? () => setView({ name: "edit-item", id: view.id, parentId: detail.parentId }) : undefined}
         onFileHere={
           view.name === "location"
@@ -404,7 +447,9 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
         else void reload(activeGroup, false);
       }}
       onSelectGroup={(id) => {
+        writePreferredCollection(id);
         setGroupId(id);
+        setGroupError(null);
         setQuery("");
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTicket.current += 1;
@@ -425,6 +470,9 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
       onSelectTab={(tab) => setView({ name: "list", tab })}
       onOpenItem={(id) => void openEntity(id, "item")}
       onOpenLocation={(id) => void openEntity(id, "location")}
+      onCreateGroup={(name) => void onCreateGroup(name)}
+      creatingGroup={creatingGroup}
+      groupError={groupError}
       onCreateItem={() => {
         setSaveError(null);
         setView({ name: "edit-item", id: null, parentId: snapshot?.locations[0]?.id ?? null });

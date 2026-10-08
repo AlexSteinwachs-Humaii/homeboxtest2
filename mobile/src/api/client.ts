@@ -286,7 +286,7 @@ export class HomeboxClient {
   private groupId = "";
   private readonly fetchImpl: FetchLike;
 
-  constructor(serverUrl: string, token = "", fetchImpl: FetchLike = fetch) {
+  constructor(serverUrl: string, token = "", fetchImpl: FetchLike = globalThis.fetch.bind(globalThis)) {
     this.serverUrl = serverUrl;
     this.token = token;
     this.fetchImpl = fetchImpl;
@@ -359,6 +359,25 @@ export class HomeboxClient {
       parse: readGroups,
       failure: "The server did not return your collections.",
       malformed: "The server did not return your collections.",
+    });
+  }
+
+  // Same POST the website's collection selector uses. The new id is not
+  // selected until the caller sends it as X-Tenant.
+  createGroup(name: string): Promise<ApiResult<GroupSummary>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a collection name." });
+    return this.request("/api/v1/groups", {
+      method: "POST",
+      auth: true,
+      tenant: false,
+      body: { name: trimmed },
+      parse: (data) => {
+        if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+        return { id: data.id, name: text(data.name) || trimmed };
+      },
+      failure: "The server did not create this collection.",
+      malformed: "The server did not return the new collection.",
     });
   }
 
@@ -437,6 +456,24 @@ export class HomeboxClient {
       parse: readMaintenanceList,
       failure: "The server did not return maintenance.",
       malformed: "The server did not return maintenance.",
+    });
+  }
+
+  // The website schedules maintenance on the item, then marks it complete.
+  createMaintenance(entityId: string, name: string): Promise<ApiResult<{ id: string }>> {
+    const trimmed = name.trim();
+    if (!trimmed) return Promise.resolve({ ok: false, status: 0, error: "Enter a name for this maintenance." });
+    return this.request(`${ENTITIES_PATH}/${encodeURIComponent(entityId)}/maintenance`, {
+      method: "POST",
+      auth: true,
+      tenant: true,
+      body: { name: trimmed },
+      parse: (data) => {
+        if (!isRecord(data) || typeof data.id !== "string" || data.id === "") return null;
+        return { id: data.id };
+      },
+      failure: "The server did not schedule this maintenance.",
+      malformed: "The server did not confirm this maintenance entry.",
     });
   }
 
@@ -530,12 +567,16 @@ export class HomeboxClient {
 
     const form = new FormData();
     const mimeType = file.mimeType || "application/octet-stream";
-    if (file.uri) {
+    if (file.bytes && file.bytes.byteLength > 0) {
+      // Web file inputs and tests already have the bytes. Prefer them over a
+      // React Native uri object, which the browser would upload as plain JSON.
+      form.append("file", new File([file.bytes as BlobPart], filename, { type: mimeType }));
+    } else if (file.uri) {
       // React Native reads this shape as a file part and uploads the bytes the
       // camera or library produced. Do not re-encode them here.
       form.append("file", { uri: file.uri, name: filename, type: mimeType } as unknown as Blob);
     } else {
-      form.append("file", new File([file.bytes as BlobPart], filename, { type: mimeType }));
+      return { ok: false, status: 0, error: "Choose a photo before uploading." };
     }
     form.append("name", filename);
     form.append("type", "photo");

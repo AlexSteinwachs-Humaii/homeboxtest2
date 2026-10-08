@@ -22,6 +22,7 @@ export function Search(props: Props) {
         placeholder="Search items"
         placeholderTextColor={colors.muted}
         returnKeyType="search"
+        accessibilityLabel="Search items"
         style={styles.searchInput}
       />
       <Pressable accessibilityRole="button" onPress={props.onScan} style={styles.scanButton}>

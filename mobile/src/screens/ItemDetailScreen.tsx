@@ -1,4 +1,5 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntityDetail, EntitySummary } from "../api/client";
@@ -28,11 +29,16 @@ type Props = {
   onOpenItem?: (id: string) => void;
   onTakePhoto?: () => void;
   onPickPhoto?: () => void;
+  onWebFile?: (file: { filename: string; mimeType: string; bytes: Uint8Array }) => void;
+  onScheduleMaintenance?: (name: string) => void;
+  schedulingMaintenance?: boolean;
+  maintenanceMessage?: string | null;
 };
 
 export function ItemDetailScreen(props: Props) {
   const detail = props.detail;
   const title = detail?.name ?? (props.loading ? "Loading…" : "Not on the server");
+  const [maintenanceName, setMaintenanceName] = useState("");
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -69,7 +75,34 @@ export function ItemDetailScreen(props: Props) {
             error={props.photoError}
             onTakePhoto={props.onTakePhoto}
             onPickPhoto={props.onPickPhoto}
+            onWebFile={props.onWebFile}
           />
+        ) : null}
+
+        {props.kind === "item" && detail && props.onScheduleMaintenance ? (
+          <View style={styles.filed}>
+            <Text style={styles.section}>Maintenance</Text>
+            <Text style={styles.note}>Schedule it here. Mark it complete from Maintenance, which reads the server log for this collection.</Text>
+            <TextInput
+              value={maintenanceName}
+              onChangeText={setMaintenanceName}
+              placeholder="Replace bulb"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Maintenance name"
+              editable={!props.schedulingMaintenance}
+              style={styles.maintenanceInput}
+            />
+            {props.maintenanceMessage ? <Text style={styles.note}>{props.maintenanceMessage}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Schedule maintenance"
+              disabled={props.schedulingMaintenance}
+              onPress={() => props.onScheduleMaintenance?.(maintenanceName)}
+              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed, props.schedulingMaintenance && styles.busy]}
+            >
+              <Text style={styles.secondaryText}>{props.schedulingMaintenance ? "Saving…" : "Schedule maintenance"}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         <Text style={styles.note}>This is the row the server returned just now. Closing the app does not keep a copy.</Text>
@@ -137,6 +170,21 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
   rowMeta: { marginTop: 2, fontSize: 14, color: colors.muted },
   footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },
+  maintenanceInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.input,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  secondary: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.primary, paddingVertical: 12, alignItems: "center", backgroundColor: colors.card },
+  secondaryPressed: { backgroundColor: colors.background },
+  secondaryText: { color: colors.primary, fontSize: 16, fontWeight: "700" },
+  busy: { opacity: 0.6 },
   primary: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   primaryPressed: { backgroundColor: colors.primaryPressed },
   primaryText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },

@@ -36,7 +36,13 @@ export function Items(props: Props) {
         </Text>
       ) : null}
       {props.items.map((item) => (
-        <Pressable key={item.id} accessibilityRole="button" onPress={() => props.onOpenItem(item.id)} style={styles.row}>
+        <Pressable
+          key={item.id}
+          accessibilityRole="button"
+          accessibilityLabel={item.name}
+          onPress={() => props.onOpenItem(item.id)}
+          style={styles.row}
+        >
           <View style={styles.rowCopy}>
             <Text style={styles.rowTitle}>{item.name}</Text>
             <Text style={styles.rowMeta}>

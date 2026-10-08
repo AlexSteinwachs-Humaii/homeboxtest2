@@ -109,7 +109,9 @@ export function SignInScreen({ initialServerUrl, error, busy, onSubmit }: Props)
           </View>
 
           <Text style={styles.footer}>
-            This phone does not keep a copy of the inventory. Closing the app and opening it again asks the server who you are.
+            {Platform.OS === "web"
+              ? "This browser does not keep a copy of the inventory and does not open the server database. Signing in asks the server who you are."
+              : "This phone does not keep a copy of the inventory. Closing the app and opening it again asks the server who you are."}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { createElement } from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "../../theme";
 
@@ -8,12 +9,29 @@ export type AttachablePhoto = {
   url: string | null;
 };
 
+export type WebPhotoFile = {
+  filename: string;
+  mimeType: string;
+  bytes: Uint8Array;
+};
+
 type Props = {
   photos: AttachablePhoto[];
   uploading: boolean;
   error: string | null;
   onTakePhoto?: () => void;
   onPickPhoto?: () => void;
+  onWebFile?: (file: WebPhotoFile) => void;
+};
+
+type BrowserFile = {
+  name: string;
+  type: string;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+type FileChange = {
+  target?: { files?: ArrayLike<BrowserFile> | null; value?: string };
 };
 
 // Photo attach. The file still uploads to the server; this is only the shared UI.
@@ -35,6 +53,9 @@ export function PhotoAttach(props: Props) {
           <Text style={styles.photoTitle}>{photo.title}</Text>
         </View>
       ))}
+      {Platform.OS === "web" && props.onWebFile ? (
+        <WebFileInput disabled={props.uploading} onFile={props.onWebFile} />
+      ) : null}
       <View style={styles.photoActions}>
         <Pressable
           accessibilityRole="button"
@@ -55,6 +76,29 @@ export function PhotoAttach(props: Props) {
       </View>
     </View>
   );
+}
+
+function WebFileInput({ disabled, onFile }: { disabled: boolean; onFile: (file: WebPhotoFile) => void }) {
+  return createElement("input", {
+    type: "file",
+    accept: "image/*",
+    "aria-label": "Attach a photo",
+    disabled,
+    onChange: (event: FileChange) => {
+      const input = event.target;
+      const file = input?.files?.[0];
+      if (!file) return;
+      void file.arrayBuffer().then((buffer) => {
+        onFile({
+          filename: file.name || "photo.jpg",
+          mimeType: file.type || "image/jpeg",
+          bytes: new Uint8Array(buffer),
+        });
+        if (input) input.value = "";
+      });
+    },
+    style: { marginTop: 12, fontSize: 14 },
+  });
 }
 
 const styles = StyleSheet.create({

@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 
 import { bytesToUuid, newUuidBytes, parseSqliteDateTime, sqliteNow, uuidToBytes } from "../db/storage.ts";
+import { ensureDefaultEntityTypes } from "./defaults.ts";
 import { checkDummyPasswordHash, checkPasswordHash, hashPassword } from "./password.ts";
 import { generateToken, hashToken } from "./token.ts";
 
@@ -258,6 +259,7 @@ export async function registerUser(
     throw new AuthError(message, 500);
   }
 
+  ensureDefaultEntityTypes(db, groupId);
   return { id: bytesToUuid(userId), email, groupId: bytesToUuid(groupId) };
 }
 

@@ -3,6 +3,7 @@ import type { Database } from "bun:sqlite";
 
 import { readAttachmentBytes, storageLayout, writeAttachmentBytes, attachmentRelativePath } from "../attachments/blob.ts";
 import { renderThumbnail } from "../attachments/thumbnail.ts";
+import { ensureDefaultEntityTypes } from "../auth/defaults.ts";
 import { authorize, jsonError, type Actor } from "../auth/guard.ts";
 import { checkPasswordHash, hashPassword } from "../auth/password.ts";
 import {
@@ -218,6 +219,7 @@ export function mountContractRoutes(app: App, db: Database, options: ContractOpt
       "usd",
     ]);
     db.run(`INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, ?)`, [actor.userId, id, "owner"]);
+    ensureDefaultEntityTypes(db, id);
     return Response.json({ id: bytesToUuid(id), name, currency: "USD", createdAt: now, updatedAt: now }, { status: 201 });
   });
 

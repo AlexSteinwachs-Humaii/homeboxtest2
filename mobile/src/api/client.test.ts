@@ -141,3 +141,23 @@ test("a network failure is not a stored session", async () => {
   if (result.ok) return;
   assert.equal(result.status, 0);
 });
+
+test("creating a collection does not send a stale X-Tenant and does not open a database", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const client = new HomeboxClient("http://127.0.0.1:7745", "Bearer session", async (url, init) => {
+    calls.push({ url, init });
+    return json(201, { id: "22222222-2222-4222-8222-222222222222", name: "Cabin", currency: "USD" });
+  });
+  client.setGroup("11111111-1111-4111-8111-111111111111");
+  const result = await client.createGroup("Cabin");
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.name, "Cabin");
+  assert.equal(calls[0]?.url, "http://127.0.0.1:7745/api/v1/groups");
+  assert.equal(calls[0]?.init?.method, "POST");
+  const headers = calls[0]?.init?.headers as Record<string, string>;
+  assert.equal(headers.Authorization, "Bearer session");
+  assert.equal(headers["X-Tenant"], undefined);
+  assert.equal(calls[0]?.url.includes("homebox.db"), false);
+  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), { name: "Cabin" });
+});

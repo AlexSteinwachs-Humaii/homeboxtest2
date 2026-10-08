@@ -1,4 +1,5 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { EntitySummary, GroupSummary, TreeNode } from "../api/client";
@@ -28,6 +29,9 @@ type Props = {
   onMaintenance: () => void;
   onRefresh: () => void;
   onSelectGroup: (id: string) => void;
+  onCreateGroup: (name: string) => void;
+  creatingGroup: boolean;
+  groupError: string | null;
   onSelectTab: (tab: Tab) => void;
   onOpenItem: (id: string) => void;
   onOpenLocation: (id: string) => void;
@@ -40,6 +44,13 @@ type Props = {
 export function InventoryScreen(props: Props) {
   const showingItems = props.searchActive || props.tab === "items";
   const locationRows = props.tree.length > 0 ? flattenLocations(props.tree) : props.locations.map((location) => ({ ...location, depth: 0, type: "location" }));
+  const [creating, setCreating] = useState(false);
+  const [collectionName, setCollectionName] = useState("");
+
+  useEffect(() => {
+    setCreating(false);
+    setCollectionName("");
+  }, [props.groupId]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -64,7 +75,7 @@ export function InventoryScreen(props: Props) {
         </View>
       </View>
 
-      {props.groups.length > 1 ? (
+      <View style={styles.collectionBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {props.groups.map((group) => {
             const selected = group.id === props.groupId;
@@ -72,6 +83,7 @@ export function InventoryScreen(props: Props) {
               <Pressable
                 key={group.id}
                 accessibilityRole="button"
+                accessibilityLabel={`Switch to ${group.name}`}
                 accessibilityState={{ selected }}
                 onPress={() => props.onSelectGroup(group.id)}
                 style={[styles.chip, selected && styles.chipSelected]}
@@ -81,7 +93,33 @@ export function InventoryScreen(props: Props) {
             );
           })}
         </ScrollView>
+        <Pressable accessibilityRole="button" accessibilityLabel="New collection" onPress={() => setCreating(true)} style={styles.textButton}>
+          <Text style={styles.textButtonLabel}>New collection</Text>
+        </Pressable>
+      </View>
+      {creating ? (
+        <View style={styles.createCollection}>
+          <TextInput
+            value={collectionName}
+            onChangeText={setCollectionName}
+            placeholder="Cabin"
+            placeholderTextColor={colors.muted}
+            accessibilityLabel="Collection name"
+            editable={!props.creatingGroup}
+            style={styles.collectionInput}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create collection"
+            disabled={props.creatingGroup}
+            onPress={() => props.onCreateGroup(collectionName)}
+            style={styles.textButton}
+          >
+            <Text style={styles.textButtonLabel}>{props.creatingGroup ? "Creating…" : "Create collection"}</Text>
+          </Pressable>
+        </View>
       ) : null}
+      {props.groupError ? <Text style={styles.error}>{props.groupError}</Text> : null}
 
       <View style={styles.tabs}>
         <TabButton label="Items" selected={props.tab === "items"} onPress={() => props.onSelectTab("items")} />
@@ -160,7 +198,20 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 2, fontSize: 14, color: colors.muted },
   textButton: { paddingVertical: 4, paddingHorizontal: 2 },
   textButtonLabel: { color: colors.primary, fontSize: 15, fontWeight: "600" },
-  chips: { paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+  collectionBar: { flexDirection: "row", alignItems: "center", paddingRight: 12 },
+  chips: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, gap: 8 },
+  createCollection: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginTop: 8 },
+  collectionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.input,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: colors.text,
+  },
   chip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 7 },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 14, fontWeight: "600" },
