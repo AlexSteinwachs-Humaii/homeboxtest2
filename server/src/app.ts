@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { loadCurrencies } from "./auth/currencies.ts";
 import { mailerFromConfig } from "./auth/mailer.ts";
 import { mountProtectedRoutes, type AttachmentRouteOptions } from "./auth/protected.ts";
+import { mountContractRoutes } from "./contract/routes.ts";
 import { mountAuthRoutes, type AuthDeps } from "./auth/routes.ts";
 import type { OidcRuntime } from "./auth/oidc.ts";
 import type { MailSender } from "./auth/users.ts";
@@ -37,7 +38,7 @@ export function statusBody(
     latest: { date: "", version: "" },
     demo: config.demo,
     allowRegistration: config.allowRegistration,
-    labelPrinting: false,
+    labelPrinting: true,
     oidc: {
       enabled: oidcEnabled,
       allowLocal: config.allowLocalLogin,
@@ -78,7 +79,16 @@ export function createApp(
       env: options.env ?? env,
     };
     mountAuthRoutes(app, deps);
-    mountProtectedRoutes(app, options.db, attachmentOptions(config));
+    const files = attachmentOptions(config);
+    mountContractRoutes(app, options.db, {
+      demo: config.demo,
+      hostname: config.hostname,
+      trustProxy: config.trustProxy,
+      storageConnString: files.connString,
+      storagePrefixPath: files.prefixPath,
+      env,
+    });
+    mountProtectedRoutes(app, options.db, files);
   }
 
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

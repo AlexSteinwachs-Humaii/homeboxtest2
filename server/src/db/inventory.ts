@@ -465,6 +465,7 @@ export function insertTag(
     parentId?: string | null;
     color?: string | null;
     description?: string | null;
+    icon?: string | null;
     createdAt?: string;
   },
 ): string {
@@ -477,7 +478,7 @@ export function insertTag(
       name: input.name,
       description: input.description ?? null,
       color: input.color ?? null,
-      icon: null,
+      icon: input.icon ?? null,
       groupTags: uuidToBytes(input.groupId),
       tagChildren: input.parentId ? uuidToBytes(input.parentId) : null,
       createdAt,

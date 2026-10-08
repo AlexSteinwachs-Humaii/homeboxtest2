@@ -13,7 +13,8 @@ import {
 } from "../attachments/service.ts";
 import { formatSqliteDateTime } from "../db/storage.ts";
 import { eventsHttpResponse } from "../events/channel.ts";
-import { searchEntities } from "../search/entities.ts";
+import { queryEntityList } from "../contract/list.ts";
+import { presentEntity, presentTag } from "../contract/present.ts";
 import { authorize, jsonError, type Actor } from "./guard.ts";
 import { isSupportedCurrency } from "./currencies.ts";
 import {
@@ -32,6 +33,7 @@ import {
   getEntityForGroup,
   getExportForGroup,
   getGroup,
+  getTagForGroup,
   listAttachmentsForEntity,
   listEntitiesForGroup,
   listExportsForGroup,
@@ -101,11 +103,7 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
     const params = new URL(c.req.url).searchParams;
-    const location = params.get("location");
-    const isLocation = location === null ? undefined : location === "true" || location === "1";
-    const q = params.get("q");
-    if (q) return Response.json(searchEntities(db, { groupId: actor.groupId, isLocation, search: q }));
-    return Response.json(listEntitiesForGroup(db, actor.groupId, isLocation));
+    return Response.json(queryEntityList(db, actor.groupId, params));
   });
 
   app.post("/api/v1/entities", async (c: Context) => {
@@ -119,8 +117,7 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
         parentId: typeof body.parentId === "string" ? body.parentId : null,
         tagIds: Array.isArray(body.tagIds) ? body.tagIds.map(String) : [],
       });
-      const row = getEntityForGroup(db, actor.groupId, id);
-      return Response.json(row, { status: 201 });
+      return Response.json(presentEntity(db, actor.groupId, id), { status: 201 });
     } catch (err) {
       return fromTenancy(err);
     }
@@ -129,7 +126,7 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
   app.get("/api/v1/entities/:id", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
-    const row = getEntityForGroup(db, actor.groupId, c.req.param("id"));
+    const row = presentEntity(db, actor.groupId, c.req.param("id"));
     if (!row) return jsonError(404, "Not Found");
     return Response.json(row);
   });
@@ -144,7 +141,7 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
         if (!renameEntityForGroup(db, actor.groupId, id, body.name)) return jsonError(404, "Not Found");
       }
       if (Array.isArray(body.tagIds)) patchEntityTagsForGroup(db, actor.groupId, id, body.tagIds.map(String));
-      const row = getEntityForGroup(db, actor.groupId, id);
+      const row = presentEntity(db, actor.groupId, id);
       if (!row) return jsonError(404, "Not Found");
       return Response.json(row);
     } catch (err) {
@@ -175,7 +172,8 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
         icon: typeof body.icon === "string" ? body.icon : null,
         parentId: typeof body.parentId === "string" ? body.parentId : null,
       });
-      return Response.json({ id }, { status: 201 });
+      const tag = getTagForGroup(db, actor.groupId, id);
+      return Response.json(tag ? presentTag(db, tag) : { id }, { status: 201 });
     } catch (err) {
       return fromTenancy(err);
     }
@@ -189,7 +187,8 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
       if (!renameTagForGroup(db, actor.groupId, c.req.param("id"), String(body.name ?? ""))) {
         return jsonError(404, "Not Found");
       }
-      return Response.json({ id: c.req.param("id"), name: String(body.name ?? "") });
+      const tag = getTagForGroup(db, actor.groupId, c.req.param("id"));
+      return Response.json(tag ? presentTag(db, tag) : { id: c.req.param("id"), name: String(body.name ?? "") });
     } catch (err) {
       return fromTenancy(err);
     }
@@ -312,18 +311,10 @@ export function mountProtectedRoutes(app: App, db: Database, storage?: Attachmen
     }
   });
 
-  app.get("/api/v1/assets/:id", (c: Context) => {
-    const actor = actorOrResponse(c, db, false, ["user", "attachments"]);
-    if (actor instanceof Response) return actor;
-    const row = getAttachmentForGroup(db, actor.groupId, c.req.param("id"));
-    if (!row) return jsonError(404, "Not Found");
-    return Response.json(row);
-  });
-
   app.get("/api/v1/group/exports", (c: Context) => {
     const actor = actorOrResponse(c, db);
     if (actor instanceof Response) return actor;
-    return Response.json(listExportsForGroup(db, actor.groupId));
+    return Response.json({ items: listExportsForGroup(db, actor.groupId) });
   });
 
   app.get("/api/v1/group/exports/:id", (c: Context) => {

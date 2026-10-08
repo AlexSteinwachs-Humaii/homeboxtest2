@@ -153,8 +153,8 @@ describe("accent-insensitive entity search", () => {
       headers: { cookie: `hb.auth.token=${session.raw}`, host: "127.0.0.1:7745" },
     });
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Array<{ name: string; groupId: string }>;
-    expect(body.map((row) => row.name)).toEqual(["café"]);
-    expect(body.every((row) => row.groupId === groupA)).toBe(true);
+    const body = (await response.json()) as { items: Array<{ name: string }> };
+    expect(body.items.map((row) => row.name)).toEqual(["café"]);
+    expect(JSON.stringify(body)).not.toContain("secret");
   });
 });
