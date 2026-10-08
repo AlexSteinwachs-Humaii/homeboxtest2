@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { HomeboxClient, type EntityDetail, type EntitySummary } from "../api/client";
+import { HomeboxClient, type EntityDetail, type EntitySummary, type MaintenanceEntry } from "../api/client";
 import { createItem, createLocation, loadInventory, updateItem, type InventorySnapshot } from "../inventory/inventory";
+import { completeMaintenance, loadMaintenance } from "../maintenance/maintenance";
 import { attachPhoto, displayAttachmentId } from "../photos/photos";
 import { pickPhoto, takePhoto } from "../photos/picker";
 import { resolveCode, searchItems, type ScanMatch } from "../scan/lookup";
@@ -10,6 +11,7 @@ import { AccountScreen } from "./AccountScreen";
 import { InventoryScreen } from "./InventoryScreen";
 import { ItemDetailScreen, type ServerPhoto } from "./ItemDetailScreen";
 import { ItemEditorScreen, type EditorValues } from "./ItemEditorScreen";
+import { MaintenanceScreen } from "./MaintenanceScreen";
 import { ScanScreen } from "./ScanScreen";
 
 type Props = {
@@ -26,6 +28,7 @@ type View =
   | { name: "edit-item"; id: string | null; parentId: string | null }
   | { name: "edit-location"; parentId: string | null }
   | { name: "scan" }
+  | { name: "maintenance" }
   | { name: "account" };
 
 export function InventoryApp({ account, session, busy, onSignOut }: Props) {
@@ -51,6 +54,12 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
   const [searchError, setSearchError] = useState<string | null>(null);
   const searchTicket = useRef(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maintenanceTicket = useRef(0);
+  const [maintenance, setMaintenance] = useState<MaintenanceEntry[]>([]);
+  const [maintenanceFilter, setMaintenanceFilter] = useState<"due" | "done" | "all">("due");
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   const reload = useCallback(
     async (preferred: string, clearFirst: boolean) => {
@@ -199,6 +208,42 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
     await uploadPicked(picked.photo);
   }
 
+  async function refreshMaintenance(activeGroup: string) {
+    const ticket = ++maintenanceTicket.current;
+    setMaintenanceLoading(true);
+    setRefreshing(true);
+    setMaintenanceError(null);
+    setMaintenance([]);
+    const result = await loadMaintenance(client, activeGroup);
+    if (ticket !== maintenanceTicket.current) return;
+    setMaintenanceLoading(false);
+    setRefreshing(false);
+    if (!result.ok) {
+      setMaintenance([]);
+      setMaintenanceError(result.message);
+      return;
+    }
+    setMaintenance(result.data);
+  }
+
+  async function onCompleteMaintenance(entry: MaintenanceEntry) {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    const ticket = ++maintenanceTicket.current;
+    setCompletingId(entry.id);
+    setMaintenanceError(null);
+    const result = await completeMaintenance(client, activeGroup, entry);
+    if (ticket !== maintenanceTicket.current) return;
+    setCompletingId(null);
+    setMaintenanceLoading(false);
+    setRefreshing(false);
+    if (!result.ok) {
+      setMaintenanceError(result.message);
+      return;
+    }
+    setMaintenanceFilter("all");
+    setMaintenance(result.data);
+  }
+
   async function saveLocation(values: EditorValues) {
     if (!snapshot) {
       setSaveError("Wait for the server to finish loading this collection.");
@@ -223,6 +268,35 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
 
   if (view.name === "account") {
     return <AccountScreen account={account} busy={busy} onSignOut={onSignOut} onBack={() => setView({ name: "list", tab: "items" })} />;
+  }
+
+  if (view.name === "maintenance") {
+    const activeGroup = snapshot?.groupId ?? groupId;
+    const groupName = snapshot?.groups.find((group) => group.id === activeGroup)?.name ?? "Collection";
+    return (
+      <MaintenanceScreen
+        groupName={groupName}
+        entries={maintenance}
+        filter={maintenanceFilter}
+        loading={maintenanceLoading}
+        refreshing={refreshing}
+        completingId={completingId}
+        error={maintenanceError}
+        onFilter={setMaintenanceFilter}
+        onRefresh={() => void refreshMaintenance(activeGroup)}
+        onComplete={(entry) => void onCompleteMaintenance(entry)}
+        onOpenItem={(id) => void openEntity(id, "item")}
+        onBack={() => {
+          maintenanceTicket.current += 1;
+          setMaintenance([]);
+          setMaintenanceError(null);
+          setCompletingId(null);
+          setMaintenanceLoading(false);
+          setRefreshing(false);
+          setView({ name: "list", tab: "items" });
+        }}
+      />
+    );
   }
 
   if (view.name === "scan") {
@@ -340,7 +414,15 @@ export function InventoryApp({ account, session, busy, onSignOut }: Props) {
         setSearchResults(null);
         setSearchError(null);
         setView({ name: "list", tab: view.tab });
+        setMaintenance([]);
+        setMaintenanceError(null);
+        maintenanceTicket.current += 1;
         void reload(id, true);
+      }}
+      onMaintenance={() => {
+        setMaintenanceFilter("due");
+        setView({ name: "maintenance" });
+        void refreshMaintenance(snapshot?.groupId ?? groupId);
       }}
       onSelectTab={(tab) => setView({ name: "list", tab })}
       onOpenItem={(id) => void openEntity(id, "item")}

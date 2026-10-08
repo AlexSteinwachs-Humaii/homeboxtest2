@@ -46,6 +46,7 @@ const ENTITIES_PATH = "/api/v1/entities";
 const TREE_PATH = "/api/v1/entities/tree";
 const ASSETS_PATH = "/api/v1/assets";
 const BARCODE_PATH = "/api/v1/products/search-from-barcode";
+const MAINTENANCE_PATH = "/api/v1/maintenance";
 
 const URL_SUFFIXES = ["/api/v1/users/login", "/api/v1"];
 
@@ -191,6 +192,27 @@ export type BarcodeProduct = {
   barcode: string;
   name: string;
   source: string;
+};
+
+export type MaintenanceStatus = "scheduled" | "completed" | "both";
+
+export type MaintenanceEntry = {
+  id: string;
+  name: string;
+  description: string;
+  cost: string;
+  completedDate: string;
+  scheduledDate: string;
+  itemID: string;
+  itemName: string;
+};
+
+export type MaintenanceUpdate = {
+  name: string;
+  description: string;
+  cost: string;
+  completedDate: string;
+  scheduledDate: string;
 };
 
 export type EntityAttachment = {
@@ -381,6 +403,37 @@ export class HomeboxClient {
       parse: readBarcodeProducts,
       failure: "The server did not look up this barcode.",
       malformed: "The server did not look up this barcode.",
+    });
+  }
+
+  // Status is required by the Go handler. "both" is the website's unfiltered list.
+  listMaintenance(status: MaintenanceStatus = "both"): Promise<ApiResult<MaintenanceEntry[]>> {
+    const params = new URLSearchParams();
+    params.set("status", status);
+    return this.request(`${MAINTENANCE_PATH}?${params.toString()}`, {
+      method: "GET",
+      auth: true,
+      tenant: true,
+      parse: readMaintenanceList,
+      failure: "The server did not return maintenance.",
+      malformed: "The server did not return maintenance.",
+    });
+  }
+
+  // Same body the website sends. Completion is a completedDate, not a new status.
+  updateMaintenance(id: string, body: MaintenanceUpdate): Promise<ApiResult<{ id: string }>> {
+    return this.request(`${MAINTENANCE_PATH}/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      auth: true,
+      tenant: true,
+      body,
+      parse: (data) => {
+        if (!isRecord(data)) return null;
+        const returned = typeof data.id === "string" && data.id !== "" ? data.id : id;
+        return returned ? { id: returned } : null;
+      },
+      failure: "The server did not update this maintenance entry.",
+      malformed: "The server did not confirm this maintenance entry.",
     });
   }
 
@@ -685,6 +738,43 @@ function readAttachment(data: unknown): EntityAttachment | null {
     primary: data.primary === true,
     thumbnailId: thumbnail,
   };
+}
+
+function readMaintenanceList(data: unknown): MaintenanceEntry[] | null {
+  if (!Array.isArray(data)) return null;
+  const entries: MaintenanceEntry[] = [];
+  for (const row of data) {
+    const parsed = readMaintenanceEntry(row);
+    if (parsed) entries.push(parsed);
+  }
+  return entries;
+}
+
+function readMaintenanceEntry(data: unknown): MaintenanceEntry | null {
+  if (!isRecord(data) || typeof data.id !== "string" || data.id === "" || typeof data.name !== "string") return null;
+  return {
+    id: data.id,
+    name: data.name,
+    description: text(data.description),
+    cost: readCost(data.cost),
+    completedDate: readDate(data.completedDate),
+    scheduledDate: readDate(data.scheduledDate),
+    itemID: text(data.itemID),
+    itemName: text(data.itemName),
+  };
+}
+
+function readCost(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "0";
+}
+
+function readDate(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed.startsWith("0001-")) return "";
+  return trimmed;
 }
 
 function readTree(data: unknown): TreeNode[] | null {

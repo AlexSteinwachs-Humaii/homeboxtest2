@@ -36,6 +36,10 @@ Scan opens the camera for a barcode or QR label, and keeps a text field for when
 
 A product barcode that is not already an item calls `GET /api/v1/products/search-from-barcode` and then shows that nothing in this collection matched. The app does not create an item from the catalog.
 
+## Maintenance
+
+Maintenance opens `GET /api/v1/maintenance?status=both` for the collection selected at the top, sent as `X-Tenant`. Due entries are listed first. Mark complete sends the same `PUT /api/v1/maintenance/{id}` body the website sends: the existing name, description, cost, and scheduled date, plus today's date as `completedDate`. The row is shown as complete only after a refresh returns that date. Another collection's entries are not in the list. The phone does not keep a maintenance log of its own.
+
 ## Photos
 
 On an item, Take photo or Choose from library uploads the file with `POST /api/v1/entities/{id}/attachments` (`file`, `name`, `type=photo`, `primary`). The camera-roll copy is only a temporary upload source. HEIC is sent as the device provides it; the server makes the thumbnail.

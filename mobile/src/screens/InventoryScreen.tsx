@@ -24,6 +24,7 @@ type Props = {
   onQueryChange: (value: string) => void;
   onSubmitSearch: () => void;
   onScan: () => void;
+  onMaintenance: () => void;
   onRefresh: () => void;
   onSelectGroup: (id: string) => void;
   onSelectTab: (tab: Tab) => void;
@@ -50,6 +51,9 @@ export function InventoryScreen(props: Props) {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          <Pressable accessibilityRole="button" onPress={props.onMaintenance} style={styles.textButton}>
+            <Text style={styles.textButtonLabel}>Maintenance</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={props.onAccount} style={styles.textButton}>
             <Text style={styles.textButtonLabel}>Account</Text>
           </Pressable>

@@ -8,7 +8,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "test": "node --experimental-strip-types --import ./test/register.mjs --test src/api/client.test.ts src/session/session.test.ts src/inventory/inventory.test.ts src/photos/photos.test.ts src/scan/lookup.test.ts src/inventory-boundary.test.ts"
+    "test": "node --experimental-strip-types --import ./test/register.mjs --test src/api/client.test.ts src/session/session.test.ts src/inventory/inventory.test.ts src/photos/photos.test.ts src/scan/lookup.test.ts src/maintenance/maintenance.test.ts src/inventory-boundary.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
