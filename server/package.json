@@ -5,6 +5,7 @@
   "description": "HomeBox API server (Bun, Hono, Drizzle, bun:sqlite). Opens an existing homebox.db; does not compile the Go API.",
   "scripts": {
     "start": "bun src/index.ts",
+    "seed": "bun src/demo/seed.ts",
     "test": "bun test"
   },
   "dependencies": {

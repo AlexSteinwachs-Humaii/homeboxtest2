@@ -196,12 +196,18 @@ export type RegistrationInput = {
   groupToken?: string;
 };
 
+export type RegisterOptions = {
+  // Demo seeding accepts HBOX_DEMO_PASSWORD as-is. Public registration must not set this.
+  skipPasswordValidation?: boolean;
+};
+
 export async function registerUser(
   db: Database,
   input: RegistrationInput,
   env: Record<string, string | undefined> = process.env,
+  options: RegisterOptions = {},
 ): Promise<{ id: string; email: string; groupId: string }> {
-  if (input.password.length < PASSWORD_MIN_LENGTH) {
+  if (!options.skipPasswordValidation && input.password.length < PASSWORD_MIN_LENGTH) {
     throw new AuthError(`password must be at least ${PASSWORD_MIN_LENGTH} characters`, 500);
   }
   const email = normalizeEmail(input.email);

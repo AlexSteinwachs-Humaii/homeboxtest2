@@ -8,6 +8,7 @@ import { eventWebSocket, handleEventsUpgrade, startEventChannel, stopEventChanne
 import { initOidc, type OidcRuntime } from "./auth/oidc.ts";
 import { createApp } from "./app.ts";
 import { loadConfig, type ServerConfig } from "./config.ts";
+import { seedDemoDatabase } from "./demo/seed.ts";
 import { applyConnectionPragmas, openDatabase, type ConnectionPragmas } from "./db.ts";
 import { readGooseRows, resolveMigrationsDir, runMigrations, type GooseRow } from "./migrate.ts";
 import { attachDatabase, type UuidObservation } from "./uuid-check.ts";
@@ -65,6 +66,15 @@ export async function startServer(
     oidc = await initOidc(preview);
   }
   const prepared = prepareDatabase(env, args);
+  if (prepared.config.demo) {
+    console.log("[homebox] Running in demo mode, creating demo data");
+    try {
+      await seedDemoDatabase(prepared.db, env);
+    } catch (err) {
+      prepared.db.close();
+      throw err;
+    }
+  }
   try {
     const legacy = migrateLegacyFlatPaths(prepared.config.storageConnString);
     if (legacy.moved > 0) {
