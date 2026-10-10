@@ -19,7 +19,10 @@
   ) => {
     openDialogCallbacks.set(dialogId, callback as (params: any) => void);
     return () => {
-      openDialogCallbacks.delete(dialogId);
+      // A later instance of the same dialog may already own this id.
+      if (openDialogCallbacks.get(dialogId) === callback) {
+        openDialogCallbacks.delete(dialogId);
+      }
     };
   };
 

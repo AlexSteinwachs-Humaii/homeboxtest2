@@ -31,8 +31,8 @@
   import ItemViewSelectable from "~/components/Item/View/Selectable.vue";
   import ItemAttachmentsList from "~/components/Item/AttachmentsList.vue";
   import ItemImageDialog from "~/components/Item/ImageDialog.vue";
-  import LocationCard from "~/components/Location/Card.vue";
   import TagChip from "~/components/Tag/Chip.vue";
+  import { locationItemParentIds, nestedLocationItemCount } from "~/lib/locations/contents";
 
   definePageMeta({
     middleware: ["auth"],
@@ -48,17 +48,23 @@
 
   const locationId = computed<string>(() => route.params.id as string);
 
-  const { data: location } = useAsyncData(locationId.value, async () => {
-    const { data, error } = await api.items.getLocation(locationId.value);
-    if (error) {
-      toast.error(t("locations.toast.failed_load_location"));
-      navigateTo("/home");
-      return;
+  const { data: locationData, refresh: refreshLocation } = await useAsyncData(
+    () => `location_${locationId.value}`,
+    async () => {
+      const { data, error } = await api.items.getLocation(locationId.value);
+      if (error) {
+        toast.error(t("locations.toast.failed_load_location"));
+        navigateTo("/home");
+        return;
+      }
+
+      return data;
     }
+  );
 
-    return data;
-  });
-
+  const location = computed(() => locationData.value);
+  const locationStore = useLocationStore();
+  void locationStore.ensureLocationsFetched();
   const confirm = useConfirm();
 
   async function confirmDelete() {
@@ -78,12 +84,18 @@
   }
 
   function openCreateItem() {
+    navigateTo({ path: "/item/new", query: { location: locationId.value } });
+  }
+
+  function openCreateLocation() {
     openDialog(DialogID.CreateEntity, {
-      params: {
-        baseType: "item",
-      },
+      params: { baseType: "location" },
+      onClose: () => refreshLocation(),
     });
   }
+
+  const nestedLocations = computed(() => location.value?.children ?? []);
+  const itemQueryIds = computed(() => locationItemParentIds(location.value, locationId.value));
 
   function goToEdit() {
     navigateTo(`/location/${locationId.value}/edit`);
@@ -192,15 +204,16 @@
     return ret;
   });
 
-  const { data: items, refresh: refreshItemList } = useAsyncData(
+  const { data: itemData, refresh: refreshItemList } = useAsyncData(
     () => locationId.value + "_item_list",
     async () => {
-      if (!locationId.value) {
+      const parentIds = itemQueryIds.value;
+      if (!parentIds) {
         return [];
       }
 
       const resp = await api.items.getAll({
-        parentIds: [locationId.value],
+        parentIds,
       });
 
       if (resp.error) {
@@ -211,9 +224,19 @@
       return resp.data.items;
     },
     {
-      watch: [locationId],
+      watch: [itemQueryIds],
     }
   );
+  const items = computed(() => itemData.value);
+
+  function nestedItemCount(id: string) {
+    return nestedLocationItemCount(
+      id,
+      locationStore.allLocations,
+      items.value ?? null,
+      location.value?.id === locationId.value
+    );
+  }
 </script>
 
 <template>
@@ -223,6 +246,10 @@
     <div v-if="location">
       <!-- set page title -->
       <Title>{{ location.name }}</Title>
+
+      <NuxtLink to="/locations" class="mb-4 inline-block text-sm text-muted-foreground hover:underline">
+        {{ $t("locations.back_to_locations") }}
+      </NuxtLink>
 
       <!-- Photo gallery -->
       <section v-if="photos.length > 0" class="mb-4">
@@ -242,7 +269,7 @@
         </div>
       </section>
 
-      <Card class="p-3">
+      <Card class="rounded-2xl p-4 shadow-none">
         <header :class="{ 'mb-2': location?.description }">
           <div class="flex flex-wrap items-end gap-2">
             <div
@@ -283,10 +310,14 @@
             </div>
             <div class="ml-auto mt-2 flex flex-wrap items-center justify-between gap-2">
               <LabelMaker :id="location.id" type="location" />
+              <Button variant="outline" @click="openCreateLocation">
+                <MdiPlus />
+                {{ $t("locations.place_inside") }}
+              </Button>
               <Button class="w-9 md:w-auto" @click="openCreateItem">
                 <MdiPlus name="mdi-plus" />
                 <span class="hidden md:inline">
-                  {{ $t("components.location.create_item") }}
+                  {{ $t("locations.add_item_here") }}
                 </span>
               </Button>
               <Button class="w-9 md:w-auto" @click="goToEdit">
@@ -307,6 +338,35 @@
         <Separator v-if="location && location.description" />
         <Markdown v-if="location && location.description" class="mt-3 text-base" :source="location.description" />
       </Card>
+
+      <!-- Places stay separate from objects, and always precede the item cards. -->
+      <section class="mt-6" data-testid="nested-locations">
+        <BaseSectionHeader class="mb-4">{{
+          $t("locations.inside_location", { name: location.name })
+        }}</BaseSectionHeader>
+        <div v-if="nestedLocations.length" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <NuxtLink
+            v-for="child in nestedLocations"
+            :key="child.id"
+            :to="`/location/${child.id}`"
+            class="rounded-2xl border bg-card p-4 transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <h2 class="font-semibold">{{ child.name }}</h2>
+            <p v-if="nestedItemCount(child.id) !== null" class="mt-1 text-sm text-muted-foreground">
+              {{
+                $t("locations.item_count", {
+                  count: nestedItemCount(child.id),
+                })
+              }}
+            </p>
+          </NuxtLink>
+        </div>
+        <p v-else class="text-sm text-muted-foreground">{{ $t("locations.no_nested_locations") }}</p>
+      </section>
+
+      <section v-if="items" class="mt-6" data-testid="location-items">
+        <ItemViewSelectable :items="items" view="card" @refresh="refreshItemList" />
+      </section>
 
       <!-- Details (notes, custom fields) -->
       <BaseCard v-if="locationDetails.length > 0" class="mt-4">
@@ -340,19 +400,6 @@
           />
         </div>
       </BaseCard>
-
-      <!-- Items in this location -->
-      <section v-if="location && items">
-        <ItemViewSelectable :items="items" @refresh="refreshItemList" />
-      </section>
-
-      <!-- Child locations -->
-      <section v-if="location && location.children && location.children.length > 0" class="mt-6">
-        <BaseSectionHeader class="mb-5"> {{ $t("locations.child_locations") }} </BaseSectionHeader>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <LocationCard v-for="child in location.children" :key="child.id" :location="child" />
-        </div>
-      </section>
     </div>
   </div>
 </template>

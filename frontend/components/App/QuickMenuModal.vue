@@ -81,7 +81,7 @@
       <CommandGroup :heading="t('global.navigate')">
         <CommandItem
           v-for="(navigate, i) in props.actions.filter(item => item.type === 'navigate')"
-          :key="navigate.text"
+          :key="navigate.href"
           :value="`global.navigate_${i + 1}`"
           @select="
             () => {

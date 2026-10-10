@@ -19,6 +19,8 @@
     locationFlatTree?: FlatTreeItem[];
     pagination?: Pagination;
     disableSort?: boolean;
+    // The item page already mounts this dialog on Details. Mounting both opens two copies.
+    includeMaintenanceModal?: boolean;
   }>();
 
   const emit = defineEmits<{
@@ -48,11 +50,20 @@
   }
 
   const externalPagination = computed(() => !!props.pagination);
+  const shownRange = computed(() => {
+    const pagination = props.pagination;
+    if (!pagination || !props.items.length || !pagination.totalSize) return { first: 0, last: 0 };
+    const offset = (pagination.page - 1) * pagination.pageSize;
+    return {
+      first: Math.min(offset + 1, pagination.totalSize),
+      last: Math.min(offset + props.items.length, pagination.totalSize),
+    };
+  });
 </script>
 
 <template>
   <section>
-    <MaintenanceEditModal />
+    <MaintenanceEditModal v-if="includeMaintenanceModal !== false" />
     <ItemChangeDetails />
 
     <BaseSectionHeader class="flex items-center justify-between" :class="{ 'mb-2 mt-4': !externalPagination }">
@@ -89,9 +100,9 @@
       </template>
     </BaseSectionHeader>
 
-    <p v-if="externalPagination && pagination!.totalSize > 0" class="mb-4 flex items-center text-base font-medium">
-      {{ $t("items.results", { total: pagination!.totalSize }) }}
-      <span class="ml-auto text-base">
+    <p v-if="externalPagination" class="mb-4 flex items-center text-base font-medium" role="status">
+      <span>{{ $t("items.shown_range", { ...shownRange, total: pagination!.totalSize }) }}</span>
+      <span v-if="pagination!.totalSize > 0" class="ml-auto text-base">
         {{
           $t("items.pages", {
             page: pagination!.page,

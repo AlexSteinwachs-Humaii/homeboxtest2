@@ -30,6 +30,7 @@
       columns: Column<EntitySummary>[];
     };
     view: "table" | "card";
+    directMove?: boolean;
     table: Table<EntitySummary>;
   }>();
 
@@ -43,6 +44,17 @@
     props.table.resetExpanded();
     emit("refresh");
   };
+
+  const moveItems = () =>
+    openDialog(DialogID.ItemChangeDetails, {
+      params: { items: props.multi ? props.multi.items.map(row => row.original) : [props.item!], changeLocation: true },
+      onClose: result => {
+        if (result) {
+          toast.success(t("components.item.view.table.dropdown.change_location_success"));
+          resetSelection();
+        }
+      },
+    });
 
   const openMultiTab = async (items: string[]) => {
     if (!preferences.value.shownMultiTabWarning) {
@@ -155,7 +167,10 @@
 </script>
 
 <template>
-  <DropdownMenu>
+  <Button v-if="directMove" variant="outline" size="sm" @click="moveItems">
+    {{ t("components.item.view.selectable.move") }}
+  </Button>
+  <DropdownMenu v-else>
     <DropdownMenuTrigger as-child>
       <Button
         :variant="view === 'table' ? 'ghost' : 'outline'"
@@ -181,19 +196,7 @@
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <!-- change location -->
-      <DropdownMenuItem
-        @click="
-          openDialog(DialogID.ItemChangeDetails, {
-            params: { items: multi ? multi.items.map(row => row.original) : [item!], changeLocation: true },
-            onClose: result => {
-              if (result) {
-                toast.success(t('components.item.view.table.dropdown.change_location_success'));
-                resetSelection();
-              }
-            },
-          })
-        "
-      >
+      <DropdownMenuItem @click="moveItems">
         {{ t("components.item.view.table.dropdown.change_location") }}
       </DropdownMenuItem>
       <!-- change tags -->

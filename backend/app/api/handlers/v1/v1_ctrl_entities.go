@@ -53,6 +53,7 @@ func startEntityCtrlSpan(ctx context.Context, name string, attrs ...attribute.Ke
 //	@Param		pageSize	query		int			false	"items per page"
 //	@Param		tags		query		[]string	false	"tags Ids"		collectionFormat(multi)
 //	@Param		parentIds	query		[]string	false	"parent Ids"	collectionFormat(multi)
+//	@Param		insured		query		bool		false	"Filter by insured status; omitted returns both"
 //	@Success	200			{object}	repo.EntityListResult
 //	@Router		/v1/entities [GET]
 //	@Security	Bearer
@@ -91,6 +92,11 @@ func (ctrl *V1Controller) HandleEntitiesGetAll() errchain.HandlerFunc {
 		if isLocStr := params.Get("isLocation"); isLocStr != "" {
 			isLoc := queryBool(isLocStr)
 			v.IsLocation = &isLoc
+		}
+
+		if insuredStr := params.Get("insured"); insuredStr != "" {
+			insured := queryBool(insuredStr)
+			v.Insured = &insured
 		}
 
 		v.FilterChildren = queryBool(params.Get("filterChildren"))

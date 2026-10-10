@@ -291,6 +291,14 @@
                                 "type": "string"
                             }
                         }
+                    },
+                    {
+                        "description": "Filter by insured status; omitted returns both",
+                        "name": "insured",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {

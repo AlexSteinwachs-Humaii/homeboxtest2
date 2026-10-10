@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col gap-1">
     <Label :for="id" class="px-1">
-      {{ $t("components.location.selector.parent_location") }}
+      {{ label || $t("components.location.selector.parent_location") }}
     </Label>
 
     <Popover v-model:open="open">
@@ -72,6 +72,7 @@
   import { useFlatLocations } from "~~/composables/use-location-helpers";
 
   type Props = {
+    label?: string;
     modelValue?: EntitySummary | null;
     currentLocation?: EntitySummary;
   };

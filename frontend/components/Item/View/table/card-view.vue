@@ -4,6 +4,7 @@
   import type { Table as TableType } from "@tanstack/vue-table";
   import MdiSelectSearch from "~icons/mdi/select-search";
   import { Checkbox } from "@/components/ui/checkbox";
+  import { Button } from "@/components/ui/button";
   import DropdownAction from "./data-table-dropdown.vue";
 
   const preferences = useViewPreferences();
@@ -31,23 +32,28 @@
       @update:model-value="table.toggleAllPageRowsSelected(!!$event)"
     />
 
+    <span v-if="selectedCount > 0" class="ml-2 text-sm" role="status">
+      {{ $t("components.item.view.selectable.selected_count", { count: selectedCount }) }}
+    </span>
     <div class="grow" />
 
-    <div :class="['relative inline-flex items-center', selectedCount === 0 ? 'pointer-events-none opacity-50' : '']">
+    <div v-if="selectedCount > 0" class="inline-flex items-center gap-2">
+      <Button variant="ghost" size="sm" @click="table.resetRowSelection()">
+        {{ $t("components.item.view.selectable.clear_selection") }}
+      </Button>
+      <DropdownAction
+        direct-move
+        :multi="{ items: table.getSelectedRowModel().rows, columns: table.getAllColumns() }"
+        view="card"
+        :table="table"
+        @refresh="$emit('refresh')"
+      />
       <DropdownAction
         :multi="{ items: table.getSelectedRowModel().rows, columns: table.getAllColumns() }"
         view="card"
         :table="table"
         @refresh="$emit('refresh')"
       />
-
-      <span v-if="selectedCount > 0" class="absolute -right-1 -top-1 flex size-4">
-        <span
-          class="pointer-events-none relative flex size-4 items-center justify-center whitespace-nowrap rounded-full bg-primary p-1 text-xs text-primary-foreground"
-        >
-          {{ String(selectedCount) }}
-        </span>
-      </span>
     </div>
   </Teleport>
   <div v-if="table.getRowModel().rows?.length === 0" class="flex flex-col items-center gap-2">

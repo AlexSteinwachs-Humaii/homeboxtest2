@@ -83,6 +83,12 @@
 
   const query = useOptionalRouteQuery("q", "");
   const includeArchived = useOptionalRouteQuery("archived", false);
+  const notArchived = computed({
+    get: () => !includeArchived.value,
+    set: value => (includeArchived.value = !value),
+  });
+  // Empty means no insured constraint; false must remain distinct from unset.
+  const insured = useOptionalRouteQuery("insured", "");
   const fieldSelector = useOptionalRouteQuery("fieldSelector", false);
   const negateTags = useOptionalRouteQuery("negateTags", false);
   const onlyWithoutPhoto = useOptionalRouteQuery("onlyWithoutPhoto", false);
@@ -123,10 +129,7 @@
       }
     }
 
-    // trigger search if no changes
-    if (!qTag && !qLoc) {
-      search();
-    }
+    await search();
 
     loading.value = false;
     window.scroll({
@@ -189,11 +192,13 @@
     return data;
   });
 
-  watch(includeArchived, (newV, oldV) => {
-    if (newV !== oldV) {
-      search();
-    }
-  });
+  function searchFromFirstPage() {
+    if (searchLocked.value) return;
+    page.value = 1;
+    search();
+  }
+
+  watch([includeArchived, insured], searchFromFirstPage);
 
   watch(fieldSelector, (newV, oldV) => {
     if (newV === false && oldV === true) {
@@ -201,18 +206,14 @@
     }
   });
 
-  watch(negateTags, (newV, oldV) => {
-    if (newV !== oldV) {
-      search();
-    }
-  });
+  watch(negateTags, searchFromFirstPage);
 
   watch(onlyWithoutPhoto, (newV, oldV) => {
     if (newV && onlyWithPhoto.value) {
       // this triggers the watch on onlyWithPhoto
       onlyWithPhoto.value = false;
     } else if (newV !== oldV) {
-      search();
+      searchFromFirstPage();
     }
   });
 
@@ -221,7 +222,7 @@
       // this triggers the watch on onlyWithoutPhoto
       onlyWithoutPhoto.value = false;
     } else if (newV !== oldV) {
-      search();
+      searchFromFirstPage();
     }
   });
 
@@ -273,6 +274,7 @@
 
     const push_query: Record<string, string | string[] | number | boolean | undefined> = {
       archived: includeArchived.value,
+      insured: insured.value,
       fieldSelector: fieldSelector.value,
       negateTags: negateTags.value,
       onlyWithoutPhoto: onlyWithoutPhoto.value,
@@ -315,6 +317,7 @@
       onlyWithoutPhoto: onlyWithoutPhoto.value,
       onlyWithPhoto: onlyWithPhoto.value,
       includeArchived: includeArchived.value,
+      ...(insured.value === "" ? {} : { insured: insured.value === "true" }),
       page: page.value,
       pageSize: pageSize.value,
       orderBy: orderBy.value,
@@ -346,7 +349,8 @@
     initialSearch.value = false;
   }
 
-  watchDebounced([page, pageSize, query, selectedTags, selectedLocations], search, { debounce: 250, maxWait: 1000 });
+  watchDebounced([page, pageSize, query], search, { debounce: 250, maxWait: 1000 });
+  watch([selectedTags, selectedLocations], searchFromFirstPage, { flush: "sync" });
 
   async function submit() {
     // Set URL Params
@@ -408,14 +412,62 @@
         <SearchFilter v-model="selectedTags" :label="$t('global.tags')" :options="tags" />
         <Popover>
           <PopoverTrigger as-child>
+            <Button size="sm" :variant="onlyWithPhoto || onlyWithoutPhoto ? 'secondary' : 'outline'">
+              {{ $t("items.has_photo") }}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="z-40 flex flex-col gap-2">
+            <Label class="flex cursor-pointer items-center justify-between gap-2">
+              {{ $t("items.only_with_photo") }}
+              <Switch v-model="onlyWithPhoto" :aria-label="$t('items.only_with_photo')" />
+            </Label>
+            <Label class="flex cursor-pointer items-center justify-between gap-2">
+              {{ $t("items.only_without_photo") }}
+              <Switch v-model="onlyWithoutPhoto" :aria-label="$t('items.only_without_photo')" />
+            </Label>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger as-child>
+            <Button size="sm" :variant="notArchived ? 'secondary' : 'outline'">
+              {{ $t("items.not_archived") }}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="z-40">
+            <Label class="flex cursor-pointer items-center justify-between gap-2">
+              {{ $t("items.not_archived") }}
+              <Switch v-model="notArchived" :aria-label="$t('items.not_archived')" />
+            </Label>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger as-child>
+            <Button size="sm" :variant="insured ? 'secondary' : 'outline'">
+              {{ $t("items.insured") }}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="z-40">
+            <Label for="insured-filter">{{ $t("items.insured") }}</Label>
+            <Select
+              :model-value="insured || 'all'"
+              @update:model-value="insured = $event === 'all' ? '' : String($event)"
+            >
+              <SelectTrigger id="insured-filter" :aria-label="$t('items.insured')">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{{ $t("items.all_insurance_statuses") }}</SelectItem>
+                <SelectItem value="true">{{ $t("items.insured") }}</SelectItem>
+                <SelectItem value="false">{{ $t("items.not_insured") }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger as-child>
             <Button size="sm" variant="outline"> {{ $t("items.options") }}</Button>
           </PopoverTrigger>
           <PopoverContent class="z-40 flex flex-col gap-2">
-            <Label class="flex cursor-pointer items-center">
-              <Switch v-model="includeArchived" class="ml-auto" />
-              <div class="grow" />
-              <span class="text-right"> {{ $t("items.include_archive") }} </span>
-            </Label>
             <Label class="flex cursor-pointer items-center">
               <Switch v-model="fieldSelector" class="ml-auto" />
               <div class="grow" />
@@ -425,16 +477,6 @@
               <Switch v-model="negateTags" class="ml-auto" />
               <div class="grow" />
               <span class="text-right"> {{ $t("items.negate_tags") }} </span>
-            </Label>
-            <Label class="flex cursor-pointer items-center">
-              <Switch v-model="onlyWithoutPhoto" class="ml-auto" />
-              <div class="grow" />
-              <span class="text-right"> {{ $t("items.only_without_photo") }} </span>
-            </Label>
-            <Label class="flex cursor-pointer items-center">
-              <Switch v-model="onlyWithPhoto" class="ml-auto" />
-              <div class="grow" />
-              <span class="text-right"> {{ $t("items.only_with_photo") }} </span>
             </Label>
             <Label class="flex cursor-pointer flex-col gap-2">
               <span class="text-right">
